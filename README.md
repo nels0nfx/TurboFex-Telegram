@@ -5,9 +5,7 @@ A Telegram group manager for the TurboFex community: welcome messages, join capt
 ## Setup (5 minutes)
 
 1. Create a bot with **@BotFather** and copy the token.
-2. Copy `config.env.example` to `config.env` and fill in:
-   - `BOT_TOKEN` : your BotFather token
-   - `OWNER_IDS` : your Telegram user ID (get it from @userinfobot)
+2. Open the included `config.env` and paste your token after `BOT_TOKEN=`. `OWNER_IDS` already has the owner ID (change it if needed; get IDs from @userinfobot).
 3. In BotFather run `/setprivacy` and choose **Disable** for your bot.
 4. Add the bot to your group and make it **admin** with: delete messages, ban users, pin messages.
 5. Install and start: `npm install` then `npm start`.
@@ -39,4 +37,4 @@ Durations: `30s`, `10m`, `2h`, `1d`, `1w`. Without a duration `/mute` and `/ban`
 
 ## Updating
 
-Replace the files with the new version and restart. `config.env` and `data/` are never overwritten by a release ZIP.
+Replace the files with the new version and restart, but **keep your own `config.env`** (it holds your token) and the `data/` folder. When unzipping an update on the host, skip it: `unzip -o TurboFex-Telegram-vX.Y.Z.zip -x config.env`.

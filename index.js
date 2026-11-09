@@ -8,6 +8,10 @@ if (!cfg.BOT_TOKEN) {
   console.error('❌ BOT_TOKEN is missing. Copy config.env.example to config.env and paste your BotFather token.');
   process.exit(1);
 }
+if (/PASTE_YOUR/i.test(cfg.BOT_TOKEN)) {
+  console.error('❌ Open config.env and replace PASTE_YOUR_BOT_TOKEN_HERE with the token from @BotFather.');
+  process.exit(1);
+}
 if (!cfg.OWNER_IDS.length) console.warn('⚠️ OWNER_IDS is empty, so owner commands are disabled. Set it in config.env.');
 
 const store = new Store(cfg.DATA_DIR);
