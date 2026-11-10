@@ -296,4 +296,10 @@ function onBoot(api, store) {
   startAuto(api, store);
 }
 
-module.exports = { register, onBoot, untar, cmpVer, checkSyntax, install };
+async function check() {
+  const remote = await remotePackage();
+  const cur = localPkg().version;
+  return { cur, latest: remote.version, newer: cmpVer(remote.version, cur) > 0 };
+}
+
+module.exports = { register, onBoot, untar, cmpVer, checkSyntax, install, check, explain, backupVersion, supervised, currentVersion: () => localPkg().version };

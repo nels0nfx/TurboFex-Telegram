@@ -20,7 +20,11 @@ loadEnvFile(path.join(ROOT, '.env'));
 
 const ids = (v) => String(v || '').split(',').map((s) => s.trim()).filter(Boolean).map(Number).filter(Number.isFinite);
 
-const aiBase = (process.env.AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai').trim().replace(/\/+$/, '');
+// The key tells us the provider: Groq keys start with gsk_, Google keys with AIza
+const aiKey = (process.env.AI_API_KEY || '').trim();
+const aiBase = (process.env.AI_BASE_URL || (aiKey.startsWith('gsk_') ? 'https://api.groq.com/openai/v1' : 'https://generativelanguage.googleapis.com/v1beta/openai')).trim().replace(/\/+$/, '');
+const isGroq = aiBase.includes('groq.com');
+const isGoogle = aiBase.includes('googleapis.com');
 
 module.exports = {
   ROOT,
@@ -32,13 +36,14 @@ module.exports = {
   GITHUB_TOKEN: (process.env.GITHUB_TOKEN || '').trim(),
   AUTO_UPDATE_HOURS: Number(process.env.AUTO_UPDATE_HOURS) || 6,
   // AI answers (any OpenAI-compatible API; defaults to Google Gemini's free tier)
-  AI_API_KEY: (process.env.AI_API_KEY || '').trim(),
+  AI_API_KEY: aiKey,
   AI_BASE_URL: aiBase,
-  AI_MODEL: (process.env.AI_MODEL || 'gemini-2.5-flash-lite').trim(),
-  AI_FALLBACK_MODEL: (process.env.AI_FALLBACK_MODEL !== undefined ? process.env.AI_FALLBACK_MODEL : (aiBase.includes('googleapis.com') ? 'gemini-2.5-flash' : '')).trim(),
+  AI_MODEL: (process.env.AI_MODEL || (isGroq ? 'llama-3.1-8b-instant' : 'gemini-2.5-flash-lite')).trim(),
+  AI_FALLBACK_MODEL: (process.env.AI_FALLBACK_MODEL !== undefined ? process.env.AI_FALLBACK_MODEL : (isGroq ? 'llama-3.3-70b-versatile' : isGoogle ? 'gemini-2.5-flash' : '')).trim(),
   AI_MAX_PER_MIN: Number(process.env.AI_MAX_PER_MIN) || 10,
   AI_DAILY_LIMIT: Number(process.env.AI_DAILY_LIMIT) || 300,
-  AI_KNOWLEDGE_MAX: Number(process.env.AI_KNOWLEDGE_MAX) || 12000,
+  AI_KNOWLEDGE_MAX: Number(process.env.AI_KNOWLEDGE_MAX) || (isGroq ? 6000 : 12000),
+  AI_MAX_TOKENS: Number(process.env.AI_MAX_TOKENS) || (isGoogle ? 800 : 450),
   ALLOWED_CHATS: ids(process.env.ALLOWED_CHATS),
   DATA_DIR: path.resolve(ROOT, process.env.DATA_DIR || 'data'),
 };

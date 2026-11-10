@@ -41,6 +41,18 @@ Durations: `30s`, `10m`, `2h`, `1d`, `1w`. Without a duration `/mute` and `/ban`
 - `ALLOWED_CHATS` : group IDs the bot may work in. It leaves every other group. Send `/id` in your group to get its ID.
 - `DATA_DIR` : where settings and warnings are saved (default `data`). Keep this folder when you update the bot.
 
+## Owner panel (/panel)
+
+Send `/panel` to the bot in a private chat. Everything is controlled with buttons:
+- **Groups:** welcome, captcha (and its timer), anti-link, AI, warn limit and action, welcome text, rules, FAQ (add and delete), clear warnings.
+- **AI & knowledge:** status, import the TurboFex README, import any link, add notes, view what the AI knows, test a question, clear your notes.
+- **Updates:** check and install, auto-update on/off, roll back.
+- **Support:** block and unblock users. **Status** and **Announce** to all groups.
+
+When a button asks you to send text (welcome text, rules, a note...), just send it as your next message. `/cancel` or the Cancel button stops it.
+
+All settings in `config.env` can also be set as variables on the hosting panel. The panel variable wins.
+
 ## AI answers (free)
 
 Members just type their question in the group, with no command, and the bot answers by itself using what it knows about the TurboFex WhatsApp bot. Chat that is not a question about TurboFex is ignored.
@@ -54,7 +66,8 @@ How it behaves:
 - In a private chat it answers first and adds a **Send this to the team** button. Anything it cannot handle (payments, account problems) goes straight to the team.
 - Admins can switch it off per group with `/ai off` (or in `/panel`).
 - Limits protect the free quota: 10 AI calls a minute, 300 a day per group, one answer per member every 12 seconds. Change them with `AI_MAX_PER_MIN` and `AI_DAILY_LIMIT`.
-- Default model is Gemini 2.5 Flash-Lite (backup: Gemini 2.5 Flash). To use Groq instead, set `AI_BASE_URL=https://api.groq.com/openai/v1` and `AI_MODEL=llama-3.3-70b-versatile`. Any OpenAI-compatible provider works.
+- The provider is detected from your key: a Groq key (starts with `gsk_`) uses Groq (`llama-3.1-8b-instant`, backup `llama-3.3-70b-versatile`), a Google key (starts with `AIza`) uses Gemini (`gemini-2.5-flash-lite`, backup `gemini-2.5-flash`). Only `AI_API_KEY` is needed. Any OpenAI-compatible provider also works with `AI_BASE_URL` and `AI_MODEL`.
+- If the AI fails (wrong key, wrong model, quota used up) the bot messages the owners once with the reason, and `/ai test <question>` shows the exact error.
 - Privacy: messages that look like questions are sent to the AI provider. On Google's free tier, prompts may be used to improve their models, so do not use it for private information.
 
 What the AI knows lives in `knowledge/turbofex.md` plus your own notes:

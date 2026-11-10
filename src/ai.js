@@ -66,7 +66,7 @@ async function complete(messages) {
       const r = await fetch(`${cfg.AI_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + cfg.AI_API_KEY },
-        body: JSON.stringify({ model, messages, max_tokens: 800, temperature: 0.3 }),
+        body: JSON.stringify({ model, messages, max_tokens: cfg.AI_MAX_TOKENS, temperature: 0.3 }),
         signal: AbortSignal.timeout(25000),
       });
       if (!r.ok) {
@@ -135,6 +135,22 @@ function toHtml(t) {
   return s.slice(0, 3500);
 }
 
+let lastAlert = 0;
+function hint(e) {
+  const st = e && e.status;
+  if (st === 401 || st === 403) return 'The AI provider rejected the key. Check AI_API_KEY (Groq keys start with gsk_, Google keys with AIza) and that AI_BASE_URL matches it.';
+  if (st === 404) return 'The model name or AI_BASE_URL is wrong.';
+  if (st === 400) return 'The provider refused the request. The model name in AI_MODEL may be wrong.';
+  if (st === 429) return 'The free quota is used up for now. It works again after a short wait.';
+  return 'I could not reach the AI service.';
+}
+// Tell the owners (at most every 30 minutes) when the AI is failing, otherwise it fails silently in groups
+function alertOwners(api, e) {
+  if (!api || Date.now() - lastAlert < 1800000) return;
+  lastAlert = Date.now();
+  for (const id of cfg.OWNER_IDS) api.sendMessage(id, `⚠️ <b>AI problem</b>\n${esc(hint(e))}\n\n<code>${esc(String(e.message).slice(0, 300))}</code>`, { parse_mode: 'HTML' }).catch(() => {});
+}
+
 async function ask(ctx, text, { mode, hkey }) {
   const msgs = [{ role: 'system', content: systemPrompt(mode) }];
   const h = history.get(hkey);
@@ -151,6 +167,7 @@ async function ask(ctx, text, { mode, hkey }) {
   } catch (e) {
     note(false, e.message);
     console.error('AI error:', e.message);
+    alertOwners(ctx.api, e);
     throw e;
   }
   if (out.toUpperCase().includes('NO_REPLY')) return null;
@@ -233,6 +250,19 @@ function appendExtra(block) {
   return next.length;
 }
 
+function info() {
+  let host = cfg.AI_BASE_URL;
+  try { host = new URL(cfg.AI_BASE_URL).host; } catch (e) { /* keep as is */ }
+  const same = stats.day === today();
+  return {
+    enabled: enabled(), host, model: cfg.AI_MODEL, fallback: cfg.AI_FALLBACK_MODEL,
+    calls: same ? stats.calls : 0, errors: same ? stats.errors : 0, lastError: same ? stats.lastError : '',
+    chars: knowledge().length, max: cfg.AI_KNOWLEDGE_MAX, base: readBase().length, extra: readExtra().length,
+  };
+}
+const clearExtra = () => fs.rmSync(EXTRA_FILE, { force: true });
+const askTest = (ctx, q) => ask(ctx, String(q).slice(0, 800), { mode: 'direct', hkey: `t:${ctx.from.id}` });
+
 function register(bot, store) {
   bot.command('ai', async (ctx) => {
     const group = isGroup(ctx);
@@ -310,4 +340,4 @@ function register(bot, store) {
   });
 }
 
-module.exports = { register, answerDM, toHtml, knowledge, clean, fetchKnowledge, QUESTION };
+module.exports = { register, answerDM, toHtml, knowledge, clean, fetchKnowledge, appendExtra, clearExtra, askTest, info, QUESTION };

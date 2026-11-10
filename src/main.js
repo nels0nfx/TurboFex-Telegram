@@ -75,6 +75,8 @@ process.on('unhandledRejection', (e) => console.error('Unhandled rejection:', (e
   await bot.init();
   console.log(`✅ TurboFex Telegram bot online as @${bot.botInfo.username}`);
   await setCommands();
+  const aiInfo = require('./ai').info();
+  console.log(aiInfo.enabled ? `🧠 AI answers on: ${aiInfo.host} · ${aiInfo.model}${aiInfo.fallback ? ' (backup ' + aiInfo.fallback + ')' : ''}` : '🧠 AI answers off (no AI_API_KEY set)');
   welcome.resume(bot.api, store);
   await bot.start({
     drop_pending_updates: true,
