@@ -27,7 +27,7 @@ class Store {
     fs.mkdirSync(dir, { recursive: true });
     this.dir = dir;
     this.file = path.join(dir, 'db.json');
-    this.data = { chats: {}, pending: {} };
+    this.data = { chats: {}, pending: {}, tickets: {}, blocked: [] };
     this.timer = null;
     this.load();
   }
@@ -37,7 +37,7 @@ class Store {
     try { raw = fs.readFileSync(this.file, 'utf8'); } catch (e) { if (e.code === 'ENOENT') return; throw e; }
     try {
       const j = JSON.parse(raw);
-      this.data = { chats: j.chats || {}, pending: j.pending || {} };
+      this.data = { chats: j.chats || {}, pending: j.pending || {}, tickets: j.tickets || {}, blocked: j.blocked || [] };
     } catch (e) {
       const bak = path.join(this.dir, `db.corrupt-${Date.now()}.json`);
       fs.writeFileSync(bak, raw);
@@ -58,6 +58,19 @@ class Store {
   getPending(chatId, userId) { return this.data.pending[`${chatId}:${userId}`]; }
   removePending(chatId, userId) { delete this.data.pending[`${chatId}:${userId}`]; this.save(); }
   allPending() { return Object.values(this.data.pending); }
+
+  // support inbox: which staff message belongs to which user
+  addTicket(chat, msg, userId) {
+    const t = this.data.tickets;
+    t[`${chat}:${msg}`] = userId;
+    const keys = Object.keys(t);
+    if (keys.length > 1000) for (const k of keys.slice(0, keys.length - 1000)) delete t[k];
+    this.save();
+  }
+  getTicket(chat, msg) { return this.data.tickets[`${chat}:${msg}`]; }
+  isBlocked(id) { return this.data.blocked.includes(id); }
+  block(id) { if (!this.isBlocked(id)) this.data.blocked.push(id); this.save(); }
+  unblock(id) { this.data.blocked = this.data.blocked.filter((x) => x !== id); this.save(); }
 
   save() {
     if (this.timer) return;

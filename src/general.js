@@ -1,11 +1,12 @@
 'use strict';
 const { InlineKeyboard } = require('grammy');
-const { isGroup, isSenderAdmin, ownerOnly } = require('./perms');
-const { say, sayTo, esc } = require('./util');
+const { isGroup, isSenderAdmin, ownerOnly, isOwner } = require('./perms');
+const { say, esc, mention, autoDelete } = require('./util');
 
 const GENERAL = [
   ['rules', 'Show the group rules'],
   ['faq', 'Show frequently asked questions'],
+  ['mywarns', 'Show your warnings'],
   ['id', 'Show your Telegram ID and the chat ID'],
   ['ping', 'Check if the bot is alive'],
   ['help', 'Show all commands'],
@@ -38,6 +39,10 @@ const ADMIN = [
 const OWNER = [
   ['status', 'Bot status'],
   ['announce', 'Send a message to all groups'],
+  ['panel', 'Manage your groups (private chat)'],
+  ['reply', 'Reply to a support user: /reply <id> <text>'],
+  ['block', 'Block a user from support: /block <id>'],
+  ['unblock', 'Unblock a user: /unblock <id>'],
 ];
 
 const line = (c) => `/${c[0]} - ${c[1]}`;
@@ -46,13 +51,15 @@ function register(bot, store) {
   bot.command('start', async (ctx) => {
     if (isGroup(ctx)) return say(ctx, '✅ I am online. Send /help to see what I can do.');
     const kb = new InlineKeyboard().url('➕ Add me to a group', `https://t.me/${ctx.me.username}?startgroup=true&admin=delete_messages+restrict_members+pin_messages+invite_users`);
-    return say(ctx, '👋 <b>TurboFex Bot</b>\nI keep your group clean, welcomed and organised.\n\nAdd me to a group, make me admin, then send /help there.', { reply_markup: kb });
+    let t = '👋 <b>TurboFex Bot</b>\nI keep your group clean, welcomed and organised.\n\n📩 Need help? Just send me a message here and the team will reply.\n🔎 /mywarns shows your warnings.\n\nAdd me to a group, make me admin, then send /help there.';
+    if (ctx.from && isOwner(ctx.from.id)) t += '\n\n🛠 Owner: use /panel to manage your groups from here.';
+    return say(ctx, t, { reply_markup: kb });
   });
 
   bot.command('help', async (ctx) => {
     let text = '<b>TurboFex Bot - commands</b>\n\n' + GENERAL.map(line).join('\n');
     if (isGroup(ctx) && (await isSenderAdmin(ctx))) text += '\n\n<b>Admin</b>\n' + ADMIN.map(line).join('\n');
-    if (ctx.from && require('./perms').isOwner(ctx.from.id)) text += '\n\n<b>Owner</b>\n' + OWNER.map(line).join('\n');
+    if (ctx.from && isOwner(ctx.from.id)) text += '\n\n<b>Owner</b>\n' + OWNER.map(line).join('\n');
     return say(ctx, text);
   });
 
@@ -102,6 +109,19 @@ function register(bot, store) {
       try { await ctx.api.sendMessage(id, '📢 ' + text); ok++; } catch (e) { /* bot removed from that group */ }
     }
     return say(ctx, `Sent to ${ok} group(s).`);
+  });
+  bot.command('mywarns', async (ctx) => {
+    const uid = String(ctx.from.id);
+    if (isGroup(ctx)) {
+      const s = store.chat(ctx.chat.id);
+      const m = await say(ctx, `${mention(ctx.from)}, you have ${s.warns[uid] || 0}/${s.warnLimit} warnings here.`);
+      autoDelete(ctx.api, ctx.chat.id, m && m.message_id, 15000);
+      autoDelete(ctx.api, ctx.chat.id, ctx.msg.message_id, 15000);
+      return;
+    }
+    const rows = store.chatIds().map((id) => ({ s: store.chat(id) })).filter((r) => r.s.warns[uid]);
+    if (!rows.length) return say(ctx, '✅ You have no warnings in any group I manage.');
+    return say(ctx, '⚠️ <b>Your warnings</b>\n' + rows.map((r) => `• ${esc(r.s.title || 'Group')}: ${r.s.warns[uid]}/${r.s.warnLimit}`).join('\n'));
   });
 }
 

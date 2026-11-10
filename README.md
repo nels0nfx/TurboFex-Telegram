@@ -26,7 +26,13 @@ Only run **one copy** of the bot at a time, otherwise Telegram reports a "409 Co
 - `/setrules <text>` `/addfaq <topic> <answer>` `/delfaq <topic>`
 - `/welcome on|off` `/captcha on|off [seconds]` `/antilink on|off` `/warnlimit <n>` `/settings`
 
-**Owner:** `/status` `/announce <message>`
+**Owner:** `/status` `/announce <message>` `/panel` `/reply <id> <text>` `/block <id>` `/unblock <id>`
+
+## Private chat (DM) features
+
+- **Support inbox:** anyone can message the bot privately. It forwards the message to the owners (and anyone listed in `SUPPORT_IDS`). Reply to that message in your DM and the answer goes back to the user. Spam is limited to 5 messages a minute, and `/block <id>` stops a user for good. Everyone who should receive tickets must press **Start** on the bot once.
+- **`/mywarns`:** members see their own warnings across all groups (in a group the answer disappears after 15 seconds).
+- **`/panel` (owner):** buttons to switch welcome, captcha and anti-link on or off, change the warn limit and the action at the limit, and check the bot's admin rights, for any group the bot is in.
 
 Durations: `30s`, `10m`, `2h`, `1d`, `1w`. Without a duration `/mute` and `/ban` last until an admin undoes them.
 

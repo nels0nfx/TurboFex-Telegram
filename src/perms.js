@@ -48,9 +48,9 @@ async function ownerOnly(ctx, next) {
   return next();
 }
 
-async function botRights(ctx) {
+async function botRights(ctx, chatId = ctx.chat.id) {
   try {
-    const m = await ctx.api.getChatMember(ctx.chat.id, ctx.me.id);
+    const m = await ctx.api.getChatMember(chatId, ctx.me.id);
     if (m.status === 'creator') return { admin: true, missing: [] };
     if (m.status !== 'administrator') return { admin: false, missing: ['be an administrator'] };
     const need = { can_delete_messages: 'delete messages', can_restrict_members: 'ban/restrict users', can_pin_messages: 'pin messages' };

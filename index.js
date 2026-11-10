@@ -42,12 +42,17 @@ require('./src/antilink').register(bot, store);
 welcome.register(bot, store);
 require('./src/general').register(bot, store);
 require('./src/admin').register(bot, store);
+require('./src/panel').register(bot, store);
+require('./src/support').register(bot, store);
 
 async function setCommands() {
   const toApi = (list) => list.map(([command, description]) => ({ command, description }));
   try {
     await bot.api.setMyCommands(toApi(GENERAL), { scope: { type: 'default' } });
     await bot.api.setMyCommands(toApi([...GENERAL, ...ADMIN]), { scope: { type: 'all_chat_administrators' } });
+    for (const id of cfg.OWNER_IDS) {
+      await bot.api.setMyCommands(toApi([...GENERAL, ...OWNER]), { scope: { type: 'chat', chat_id: id } }).catch(() => {});
+    }
   } catch (e) {
     console.error('Could not set the command menu:', e.description || e.message);
   }
