@@ -66,7 +66,8 @@ How it behaves:
 - In a private chat it answers first and adds a **Send this to the team** button. Anything it cannot handle (payments, account problems) goes straight to the team.
 - Admins can switch it off per group with `/ai off` (or in `/panel`).
 - Limits protect the free quota: 10 AI calls a minute, 300 a day per group, one answer per member every 12 seconds. Change them with `AI_MAX_PER_MIN` and `AI_DAILY_LIMIT`.
-- The provider is detected from your key: a Groq key (starts with `gsk_`) uses Groq (`llama-3.1-8b-instant`, backup `llama-3.3-70b-versatile`), a Google key (starts with `AIza`) uses Gemini (`gemini-2.5-flash-lite`, backup `gemini-2.5-flash`). Only `AI_API_KEY` is needed. Any OpenAI-compatible provider also works with `AI_BASE_URL` and `AI_MODEL`.
+- The provider is detected from your key: a Groq key (starts with `gsk_`) uses Groq (`openai/gpt-oss-20b`, backup `openai/gpt-oss-120b`), a Google key (starts with `AIza`) uses Gemini (`gemini-2.5-flash-lite`, backup `gemini-2.5-flash`). Only `AI_API_KEY` is needed. Any OpenAI-compatible provider also works with `AI_BASE_URL` and `AI_MODEL`.
+- Providers retire models now and then (Groq retired its Llama 3.1 8B and 3.3 70B on 16 Aug 2026). If the model stops working the bot finds a working one by itself and remembers it. `/ai fix` (or the panel button) does it on demand and `/ai models` lists what your key can use.
 - If the AI fails (wrong key, wrong model, quota used up) the bot messages the owners once with the reason, and `/ai test <question>` shows the exact error.
 - Privacy: messages that look like questions are sent to the AI provider. On Google's free tier, prompts may be used to improve their models, so do not use it for private information.
 

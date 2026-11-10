@@ -38,12 +38,12 @@ module.exports = {
   // AI answers (any OpenAI-compatible API; defaults to Google Gemini's free tier)
   AI_API_KEY: aiKey,
   AI_BASE_URL: aiBase,
-  AI_MODEL: (process.env.AI_MODEL || (isGroq ? 'llama-3.1-8b-instant' : 'gemini-2.5-flash-lite')).trim(),
-  AI_FALLBACK_MODEL: (process.env.AI_FALLBACK_MODEL !== undefined ? process.env.AI_FALLBACK_MODEL : (isGroq ? 'llama-3.3-70b-versatile' : isGoogle ? 'gemini-2.5-flash' : '')).trim(),
+  AI_MODEL: (process.env.AI_MODEL || (isGroq ? 'openai/gpt-oss-20b' : 'gemini-2.5-flash-lite')).trim(),
+  AI_FALLBACK_MODEL: (process.env.AI_FALLBACK_MODEL !== undefined ? process.env.AI_FALLBACK_MODEL : (isGroq ? 'openai/gpt-oss-120b' : isGoogle ? 'gemini-2.5-flash' : '')).trim(),
   AI_MAX_PER_MIN: Number(process.env.AI_MAX_PER_MIN) || 10,
   AI_DAILY_LIMIT: Number(process.env.AI_DAILY_LIMIT) || 300,
   AI_KNOWLEDGE_MAX: Number(process.env.AI_KNOWLEDGE_MAX) || (isGroq ? 6000 : 12000),
-  AI_MAX_TOKENS: Number(process.env.AI_MAX_TOKENS) || (isGoogle ? 800 : 450),
+  AI_MAX_TOKENS: Number(process.env.AI_MAX_TOKENS) || (isGoogle ? 800 : isGroq ? 1000 : 450),
   ALLOWED_CHATS: ids(process.env.ALLOWED_CHATS),
   DATA_DIR: path.resolve(ROOT, process.env.DATA_DIR || 'data'),
 };

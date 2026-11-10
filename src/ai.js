@@ -58,34 +58,103 @@ function systemPrompt(mode) {
 }
 
 // ---------- API ----------
+// Providers retire models from time to time. When the configured model stops working the bot asks the
+// provider which models the key can use, tests them and keeps using one that works.
+const PREFERRED = ['openai/gpt-oss-20b', 'openai/gpt-oss-120b', 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'llama-3.1-8b-instant', 'llama-3.3-70b-versatile'];
+const NOT_CHAT = /(whisper|tts|guard|embed|moderation|orpheus|playai|imagen|veo|image|audio|transcribe|rerank|safeguard|compound|vision|live|robotics|learnlm)/i;
+const BAD_FOR = 6 * 3600 * 1000;
+let auto = null;
+let persist = () => {};
+const bad = new Map();
+let available = [];
+
+const isModelProblem = (e) => !!e && (e.status === 404 || /model_not_found|does not exist|decommission|deprecat|not have access/i.test(e.message || ''));
+const usable = (m) => !(bad.get(m) > Date.now() - BAD_FOR);
+
+async function call(model, messages, maxTokens = cfg.AI_MAX_TOKENS) {
+  const body = { model, messages, max_tokens: maxTokens, temperature: 0.3 };
+  if (cfg.AI_BASE_URL.includes('groq.com') && /gpt-oss/i.test(model)) body.reasoning_effort = 'low';
+  const r = await fetch(`${cfg.AI_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + cfg.AI_API_KEY },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(25000),
+  });
+  if (!r.ok) {
+    const txt = (await r.text().catch(() => '')).slice(0, 200);
+    const e = new Error(`${model}: HTTP ${r.status} ${txt}`);
+    e.status = r.status;
+    throw e;
+  }
+  const j = await r.json();
+  const text = String((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  if (!text) throw new Error(`${model}: empty answer`);
+  return text;
+}
+
+// Models this key can use, best first
+async function discover() {
+  const r = await fetch(`${cfg.AI_BASE_URL}/models`, { headers: { Authorization: 'Bearer ' + cfg.AI_API_KEY }, signal: AbortSignal.timeout(15000) });
+  if (!r.ok) { const e = new Error(`model list: HTTP ${r.status}`); e.status = r.status; throw e; }
+  const j = await r.json();
+  const ids = (j.data || j.models || []).map((m) => String(m.id || m.name || '').replace(/^models\//, '')).filter(Boolean);
+  available = ids.filter((id) => !NOT_CHAT.test(id));
+  const rank = (id) => { const i = PREFERRED.indexOf(id); return i >= 0 ? i : 100 + (/(flash-lite|8b|20b|instant|mini|small|flash)/i.test(id) ? 0 : 1); };
+  return available.filter(usable).sort((x, y) => rank(x) - rank(y));
+}
+
 async function complete(messages) {
-  const models = [...new Set([cfg.AI_MODEL, cfg.AI_FALLBACK_MODEL].filter(Boolean))];
-  let last;
-  for (const model of models) {
+  const errors = [];
+  const tried = new Set();
+  const order = () => [...new Set([auto, cfg.AI_MODEL, cfg.AI_FALLBACK_MODEL].filter(Boolean))].filter((m) => !tried.has(m) && usable(m));
+  let queue = order();
+  let modelProblem = queue.length === 0;
+  let discovered = false;
+  let firstStatus;
+  for (;;) {
+    if (!queue.length) {
+      if (discovered || !modelProblem) break;
+      discovered = true;
+      try { queue = (await discover()).filter((m) => !tried.has(m)).slice(0, 4); } catch (e) { errors.push(e.message); break; }
+      continue;
+    }
+    const model = queue.shift();
+    tried.add(model);
     try {
-      const r = await fetch(`${cfg.AI_BASE_URL}/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + cfg.AI_API_KEY },
-        body: JSON.stringify({ model, messages, max_tokens: cfg.AI_MAX_TOKENS, temperature: 0.3 }),
-        signal: AbortSignal.timeout(25000),
-      });
-      if (!r.ok) {
-        const body = (await r.text().catch(() => '')).slice(0, 200);
-        const e = new Error(`AI API ${r.status} (${model}): ${body}`);
-        e.status = r.status;
-        throw e;
-      }
-      const j = await r.json();
-      const text = String((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '')
-        .replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-      if (!text) throw new Error(`AI API returned an empty answer (${model})`);
+      const text = await call(model, messages);
+      const next = model === cfg.AI_MODEL ? null : model;
+      if (next !== auto) { auto = next; persist(auto); }
       return text;
     } catch (e) {
-      last = e;
-      if (e.status && ![400, 404, 429, 500, 502, 503, 504].includes(e.status)) break; // key problems: retrying will not help
+      errors.push(e.message);
+      if (firstStatus === undefined) firstStatus = e.status;
+      if (isModelProblem(e)) { bad.set(model, Date.now()); modelProblem = true; } else if (e.status === 401 || e.status === 403) break;
     }
   }
-  throw last;
+  const err = new Error(errors.join(' | ').slice(0, 500) || 'No AI model is available.');
+  err.status = firstStatus;
+  err.modelProblem = modelProblem;
+  throw err;
+}
+
+// Test the models the key can use and keep the first one that answers
+async function fixModel() {
+  const list = await discover();
+  const results = [];
+  for (const m of list.slice(0, 5)) {
+    try {
+      await call(m, [{ role: 'user', content: 'Reply with the single word OK.' }]);
+      auto = m === cfg.AI_MODEL ? null : m;
+      persist(auto);
+      bad.delete(m);
+      return { model: m, tried: results };
+    } catch (e) {
+      results.push(e.message.slice(0, 90));
+      if (isModelProblem(e)) bad.set(m, Date.now());
+    }
+  }
+  throw new Error('No model worked.' + (results.length ? '\n' + results.join('\n') : ' The key can see no chat models.'));
 }
 
 // ---------- limits, history, formatting ----------
@@ -139,7 +208,7 @@ let lastAlert = 0;
 function hint(e) {
   const st = e && e.status;
   if (st === 401 || st === 403) return 'The AI provider rejected the key. Check AI_API_KEY (Groq keys start with gsk_, Google keys with AIza) and that AI_BASE_URL matches it.';
-  if (st === 404) return 'The model name or AI_BASE_URL is wrong.';
+  if (e && (e.modelProblem || st === 404)) return 'The AI model is no longer available to your key (providers retire models). Send /ai fix and I will find one that works.';
   if (st === 400) return 'The provider refused the request. The model name in AI_MODEL may be wrong.';
   if (st === 429) return 'The free quota is used up for now. It works again after a short wait.';
   return 'I could not reach the AI service.';
@@ -255,7 +324,7 @@ function info() {
   try { host = new URL(cfg.AI_BASE_URL).host; } catch (e) { /* keep as is */ }
   const same = stats.day === today();
   return {
-    enabled: enabled(), host, model: cfg.AI_MODEL, fallback: cfg.AI_FALLBACK_MODEL,
+    enabled: enabled(), host, model: cfg.AI_MODEL, using: auto || cfg.AI_MODEL, fallback: cfg.AI_FALLBACK_MODEL,
     calls: same ? stats.calls : 0, errors: same ? stats.errors : 0, lastError: same ? stats.lastError : '',
     chars: knowledge().length, max: cfg.AI_KNOWLEDGE_MAX, base: readBase().length, extra: readExtra().length,
   };
@@ -264,6 +333,11 @@ const clearExtra = () => fs.rmSync(EXTRA_FILE, { force: true });
 const askTest = (ctx, q) => ask(ctx, String(q).slice(0, 800), { mode: 'direct', hkey: `t:${ctx.from.id}` });
 
 function register(bot, store) {
+  store.data.settings = store.data.settings || {};
+  const saved = store.data.settings.aiModel;
+  if (saved && saved.configured === cfg.AI_MODEL && saved.model) auto = saved.model;
+  persist = (m) => { store.data.settings.aiModel = m ? { model: m, configured: cfg.AI_MODEL } : undefined; store.save(); };
+
   bot.command('ai', async (ctx) => {
     const group = isGroup(ctx);
     if (group ? !(await isSenderAdmin(ctx)) : !(ctx.from && isOwner(ctx.from.id))) return;
@@ -275,6 +349,25 @@ function register(bot, store) {
       store.chat(ctx.chat.id).ai.enabled = sub === 'on';
       store.save();
       return say(ctx, sub === 'on' ? '🧠 AI answers are on in this group.' : '⛔ AI answers are off in this group.');
+    }
+    if (sub === 'fix') {
+      if (!enabled()) return say(ctx, '⚠️ No AI key is set yet. Add AI_API_KEY to config.env and restart.');
+      await say(ctx, '🔧 Looking for a model that works with your key…');
+      try {
+        const r = await fixModel();
+        return say(ctx, `✅ Now using <code>${esc(r.model)}</code>.${r.tried.length ? '\nSkipped: ' + esc(r.tried.join('; ')) : ''}`);
+      } catch (e) {
+        return say(ctx, '❌ ' + esc(e.message));
+      }
+    }
+    if (sub === 'models') {
+      if (!enabled()) return say(ctx, '⚠️ No AI key is set yet. Add AI_API_KEY to config.env and restart.');
+      try {
+        const list = await discover();
+        return say(ctx, list.length ? '🧠 <b>Models your key can use</b>\n' + list.slice(0, 25).map((m) => '• ' + esc(m)).join('\n') + '\n\nUse /ai fix to pick one automatically.' : 'The key can see no chat models.');
+      } catch (e) {
+        return say(ctx, '❌ ' + esc(e.message));
+      }
     }
     if (sub === 'test') {
       const q = arg.replace(/^test\s*/i, '').trim();
@@ -291,12 +384,12 @@ function register(bot, store) {
     const lines = [
       '🧠 <b>AI answers</b>',
       enabled() ? `Key: set · Provider: ${esc(host)}` : 'Key: <b>not set</b>. Add AI_API_KEY to config.env and restart.',
-      `Model: ${esc(cfg.AI_MODEL)}${cfg.AI_FALLBACK_MODEL ? ' (backup: ' + esc(cfg.AI_FALLBACK_MODEL) + ')' : ''}`,
+      `Model: ${esc(auto || cfg.AI_MODEL)}${auto ? ' (picked automatically, configured: ' + esc(cfg.AI_MODEL) + ')' : cfg.AI_FALLBACK_MODEL ? ' (backup: ' + esc(cfg.AI_FALLBACK_MODEL) + ')' : ''}`,
     ];
     if (group) lines.push(`This group: ${store.chat(ctx.chat.id).ai.enabled ? 'on' : 'off'}`);
     lines.push(`Knowledge sent to the AI: ${knowledge().length} characters`);
     if (stats.day === today()) lines.push(`Today: ${stats.calls} requests, ${stats.errors} errors${stats.lastError ? '\nLast error: ' + esc(stats.lastError) : ''}`);
-    lines.push('', 'Use <code>/ai test your question</code> to try it.');
+    lines.push('', 'Try <code>/ai test your question</code>. If it fails, <code>/ai fix</code> finds a working model.');
     return say(ctx, lines.join('\n'));
   });
 
@@ -340,4 +433,4 @@ function register(bot, store) {
   });
 }
 
-module.exports = { register, answerDM, toHtml, knowledge, clean, fetchKnowledge, appendExtra, clearExtra, askTest, info, QUESTION };
+module.exports = { register, answerDM, toHtml, knowledge, clean, fetchKnowledge, appendExtra, clearExtra, askTest, info, fixModel, discover, QUESTION };

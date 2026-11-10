@@ -64,14 +64,15 @@ function register(bot, store) {
     const text = note(n, [
       '🧠 <b>AI & knowledge</b>',
       i.enabled ? `Provider: ${esc(i.host)}` : '⚠️ <b>No AI key set.</b> Add AI_API_KEY to config.env and restart.',
-      `Model: ${esc(i.model)}${i.fallback ? ' (backup: ' + esc(i.fallback) + ')' : ''}`,
+      `Model: ${esc(i.using)}${i.using !== i.model ? ' (picked automatically, configured: ' + esc(i.model) + ')' : i.fallback ? ' (backup: ' + esc(i.fallback) + ')' : ''}`,
       `Knowledge: ${i.chars} of ${i.max} characters (built-in ${i.base}, yours ${i.extra})`,
       `Today: ${i.calls} requests, ${i.errors} errors${i.lastError ? '\nLast error: ' + esc(i.lastError) : ''}`,
     ].join('\n'));
     const kb = new InlineKeyboard()
       .text('📥 Import TurboFex README', 'pn:ki').text('🔗 Import a link', 'pn:kl').row()
       .text('➕ Add a note', 'pn:kn').text('👁 View knowledge', 'pn:kv').row()
-      .text('🧪 Test a question', 'pn:kt').text('🗑 Clear my notes', 'pn:kc').row()
+      .text('🧪 Test a question', 'pn:kt').text('🔧 Find a working model', 'pn:km').row()
+      .text('🗑 Clear my notes', 'pn:kc').row()
       .text('⬅️ Back', 'pn:b');
     return { text, kb };
   }
@@ -202,6 +203,15 @@ function register(bot, store) {
       }
       case 'kc': return done(confirm('🗑 Remove all notes you added? The built-in knowledge file stays.', 'pn:kd', 'pn:ai'));
       case 'kd': ai.clearExtra(); return done(aiMenu('🗑 Your notes were removed.'));
+      case 'km': {
+        await ctx.answerCallbackQuery({ text: 'Looking for a working model…' });
+        try {
+          const r = await ai.fixModel();
+          return show(ctx, aiMenu(`✅ Now using ${esc(r.model)}.`));
+        } catch (e) {
+          return show(ctx, aiMenu('❌ ' + esc(e.message)));
+        }
+      }
       case 'kt': return prompt('test', {}, '🧪 Send a question, the way a member would ask it.');
 
       case 'u': return done(updatesMenu());
