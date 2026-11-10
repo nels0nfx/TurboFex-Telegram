@@ -1,6 +1,7 @@
 'use strict';
 const cfg = require('./config');
 const { ownerOnly } = require('./perms');
+const ai = require('./ai');
 const { say, esc, mention, autoDelete } = require('./util');
 
 const hits = new Map();
@@ -26,6 +27,12 @@ function register(bot, store) {
 
   // A user writes to the bot in private -> forward to the team
   async function incoming(ctx) {
+    if (store.isBlocked(ctx.from.id)) return;
+    if (await ai.answerDM(ctx)) return; // the AI answered; the member can tap "Send this to the team"
+    return forward(ctx, ctx.msg.message_id);
+  }
+
+  async function forward(ctx, messageId, always = false) {
     const uid = ctx.from.id;
     if (store.isBlocked(uid) || tooFast(uid)) return;
     const targets = staff();
@@ -36,7 +43,7 @@ function register(bot, store) {
     for (const t of targets) {
       try {
         const h = await ctx.api.sendMessage(t, header, { parse_mode: 'HTML' });
-        const c = await ctx.api.copyMessage(t, ctx.chat.id, ctx.msg.message_id);
+        const c = await ctx.api.copyMessage(t, ctx.chat.id, messageId);
         store.addTicket(t, h.message_id, uid);
         store.addTicket(t, c.message_id, uid);
         delivered++;
@@ -45,7 +52,7 @@ function register(bot, store) {
       }
     }
     if (!delivered) return say(ctx, '⚠️ I could not reach the team right now. Please try again later.');
-    if (Date.now() - (acked.get(uid) || 0) > 600000) {
+    if (always || Date.now() - (acked.get(uid) || 0) > 600000) {
       acked.set(uid, Date.now());
       await say(ctx, '✅ Sent to the team. You will get the reply here.');
     }
@@ -55,6 +62,13 @@ function register(bot, store) {
     await api.sendMessage(uid, '💬 <b>Reply from the TurboFex team:</b>', { parse_mode: 'HTML' });
     await fn();
   }
+
+  bot.callbackQuery(/^ai:team:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    ctx.editMessageReplyMarkup().catch(() => {});
+    if (isStaff(ctx.from.id)) return;
+    return forward(ctx, Number(ctx.match[1]), true);
+  });
 
   // Staff replies (reply to a ticket message in the DM)
   async function relay(ctx) {
@@ -99,7 +113,9 @@ function register(bot, store) {
   bot.on('message', async (ctx, next) => {
     if (ctx.chat.type !== 'private' || !ctx.from) return next();
     if (ctx.msg.text && ctx.msg.text.startsWith('/')) return next();
-    return isStaff(ctx.from.id) ? relay(ctx) : incoming(ctx);
+    if (isStaff(ctx.from.id)) return relay(ctx);
+    incoming(ctx).catch((e) => console.error('support:', e.message)); // do not hold up other updates
+    return;
   });
 }
 

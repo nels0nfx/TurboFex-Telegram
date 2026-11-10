@@ -20,6 +20,8 @@ loadEnvFile(path.join(ROOT, '.env'));
 
 const ids = (v) => String(v || '').split(',').map((s) => s.trim()).filter(Boolean).map(Number).filter(Number.isFinite);
 
+const aiBase = (process.env.AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai').trim().replace(/\/+$/, '');
+
 module.exports = {
   ROOT,
   BOT_TOKEN: (process.env.BOT_TOKEN || '').trim(),
@@ -29,6 +31,14 @@ module.exports = {
   UPDATE_BRANCH: (process.env.UPDATE_BRANCH || 'main').trim(),
   GITHUB_TOKEN: (process.env.GITHUB_TOKEN || '').trim(),
   AUTO_UPDATE_HOURS: Number(process.env.AUTO_UPDATE_HOURS) || 6,
+  // AI answers (any OpenAI-compatible API; defaults to Google Gemini's free tier)
+  AI_API_KEY: (process.env.AI_API_KEY || '').trim(),
+  AI_BASE_URL: aiBase,
+  AI_MODEL: (process.env.AI_MODEL || 'gemini-2.5-flash-lite').trim(),
+  AI_FALLBACK_MODEL: (process.env.AI_FALLBACK_MODEL !== undefined ? process.env.AI_FALLBACK_MODEL : (aiBase.includes('googleapis.com') ? 'gemini-2.5-flash' : '')).trim(),
+  AI_MAX_PER_MIN: Number(process.env.AI_MAX_PER_MIN) || 10,
+  AI_DAILY_LIMIT: Number(process.env.AI_DAILY_LIMIT) || 300,
+  AI_KNOWLEDGE_MAX: Number(process.env.AI_KNOWLEDGE_MAX) || 12000,
   ALLOWED_CHATS: ids(process.env.ALLOWED_CHATS),
   DATA_DIR: path.resolve(ROOT, process.env.DATA_DIR || 'data'),
 };

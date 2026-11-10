@@ -24,9 +24,9 @@ Only run **one copy** of the bot at a time, otherwise Telegram reports a "409 Co
 - `/del` `/pin [loud]` `/unpin` : reply to a message
 - `/setwelcome <text>` : placeholders `{mention}` `{name}` `{chat}` `{id}`
 - `/setrules <text>` `/addfaq <topic> <answer>` `/delfaq <topic>`
-- `/welcome on|off` `/captcha on|off [seconds]` `/antilink on|off` `/warnlimit <n>` `/settings`
+- `/welcome on|off` `/captcha on|off [seconds]` `/antilink on|off` `/ai on|off` `/warnlimit <n>` `/settings`
 
-**Owner:** `/status` `/announce <message>` `/panel` `/reply <id> <text>` `/block <id>` `/unblock <id>`
+**Owner:** `/status` `/announce <message>` `/knowledge` `/panel` `/reply <id> <text>` `/block <id>` `/unblock <id>`
 
 ## Private chat (DM) features
 
@@ -40,6 +40,27 @@ Durations: `30s`, `10m`, `2h`, `1d`, `1w`. Without a duration `/mute` and `/ban`
 
 - `ALLOWED_CHATS` : group IDs the bot may work in. It leaves every other group. Send `/id` in your group to get its ID.
 - `DATA_DIR` : where settings and warnings are saved (default `data`). Keep this folder when you update the bot.
+
+## AI answers (free)
+
+Members just type their question in the group, with no command, and the bot answers by itself using what it knows about the TurboFex WhatsApp bot. Chat that is not a question about TurboFex is ignored.
+
+1. Get a free key at https://aistudio.google.com/apikey (sign in, press **Create API key**).
+2. Put it in `config.env` as `AI_API_KEY=...` (or add `AI_API_KEY` as a variable on the panel) and restart.
+3. Send `/ai status`, then try `/ai test how do I get a session ID?`.
+
+How it behaves:
+- In a group it answers messages that look like a question, never replies to messages aimed at other people, and always answers when someone mentions the bot or replies to it.
+- In a private chat it answers first and adds a **Send this to the team** button. Anything it cannot handle (payments, account problems) goes straight to the team.
+- Admins can switch it off per group with `/ai off` (or in `/panel`).
+- Limits protect the free quota: 10 AI calls a minute, 300 a day per group, one answer per member every 12 seconds. Change them with `AI_MAX_PER_MIN` and `AI_DAILY_LIMIT`.
+- Default model is Gemini 2.5 Flash-Lite (backup: Gemini 2.5 Flash). To use Groq instead, set `AI_BASE_URL=https://api.groq.com/openai/v1` and `AI_MODEL=llama-3.3-70b-versatile`. Any OpenAI-compatible provider works.
+- Privacy: messages that look like questions are sent to the AI provider. On Google's free tier, prompts may be used to improve their models, so do not use it for private information.
+
+What the AI knows lives in `knowledge/turbofex.md` plus your own notes:
+- `/knowledge import https://github.com/nels0nfx/TurboFex` adds the README of the WhatsApp bot.
+- `/knowledge add <text>` adds your own notes, `/knowledge show` shows what the AI sees, `/knowledge clear` removes your notes.
+- Your notes are stored in `data/` and survive updates.
 
 ## Updating the bot (from Telegram)
 

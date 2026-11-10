@@ -24,7 +24,8 @@ function register(bot, store) {
     const kb = new InlineKeyboard()
       .text(`👋 Welcome: ${onOff(s.welcome.enabled)}`, `pn:t:${id}:w`)
       .text(`🤖 Captcha: ${onOff(s.captcha.enabled)}`, `pn:t:${id}:c`).row()
-      .text(`🔗 Anti-link: ${onOff(s.antilink)}`, `pn:t:${id}:l`).row()
+      .text(`🔗 Anti-link: ${onOff(s.antilink)}`, `pn:t:${id}:l`)
+      .text(`🧠 AI: ${onOff(s.ai.enabled)}`, `pn:t:${id}:i`).row()
       .text('➖', `pn:l:${id}:-`).text(`⚠️ Limit: ${s.warnLimit}`, 'pn:n').text('➕', `pn:l:${id}:+`).row()
       .text(`At limit: ${s.warnAction}`, `pn:a:${id}`).row()
       .text('⬅️ Back', 'pn:b');
@@ -59,6 +60,7 @@ function register(bot, store) {
       if (arg === 'w') s.welcome.enabled = !s.welcome.enabled;
       if (arg === 'c') s.captcha.enabled = !s.captcha.enabled;
       if (arg === 'l') s.antilink = !s.antilink;
+      if (arg === 'i') s.ai.enabled = !s.ai.enabled;
     } else if (act === 'l') {
       s.warnLimit = Math.min(20, Math.max(1, s.warnLimit + (arg === '+' ? 1 : -1)));
     } else if (act === 'a') {

@@ -1,6 +1,7 @@
 'use strict';
 const { adminOnly, isAdminId, botRights } = require('./perms');
 const actions = require('./actions');
+const cfg = require('./config');
 const { say, mention, mentionOf, esc, getTarget, parseDuration, fmtDuration, onOff } = require('./util');
 
 const MAX_TEXT = 3500;
@@ -212,6 +213,7 @@ function register(bot, store) {
       `Welcome: ${yn(s.welcome.enabled)}`,
       `Captcha: ${yn(s.captcha.enabled)} (${s.captcha.timeout}s)`,
       `Anti-link: ${yn(s.antilink)}`,
+      `AI answers: ${yn(s.ai.enabled)}${cfg.AI_API_KEY ? '' : ' (no AI key set yet)'}`,
       `Warn limit: ${s.warnLimit} → ${s.warnAction}`,
       `Rules: ${s.rules ? 'set' : 'not set'}`,
       `FAQ entries: ${Object.keys(s.faq).length}`,

@@ -45,6 +45,7 @@ require('./admin').register(bot, store);
 require('./panel').register(bot, store);
 const updater = require('./updater');
 updater.register(bot, store);
+require('./ai').register(bot, store);
 require('./support').register(bot, store);
 
 async function setCommands() {

@@ -8,6 +8,7 @@ const defaults = () => ({
   rules: '',
   captcha: { enabled: false, timeout: 120 },
   antilink: false,
+  ai: { enabled: true },
   warnLimit: 3,
   warnAction: 'mute',
   warns: {},
