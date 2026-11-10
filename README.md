@@ -71,9 +71,10 @@ How it behaves:
 - If the AI fails (wrong key, wrong model, quota used up) the bot messages the owners once with the reason, and `/ai test <question>` shows the exact error.
 - Privacy: messages that look like questions are sent to the AI provider. On Google's free tier, prompts may be used to improve their models, so do not use it for private information.
 
-What the AI knows lives in `knowledge/turbofex.md` plus your own notes:
-- `/knowledge import https://github.com/nels0nfx/TurboFex` adds the README of the WhatsApp bot.
-- `/knowledge add <text>` adds your own notes, `/knowledge show` shows what the AI sees, `/knowledge clear` removes your notes.
+What the AI knows lives in `knowledge/turbofex.md` plus your own notes. **There is no limit on how much you can teach it.** Each question only carries the most relevant parts (up to `AI_KNOWLEDGE_MAX` characters, default 8000 on Groq and 24000 on Gemini) so the free quota is not wasted. Set `AI_KNOWLEDGE_MAX=0` to send everything with every question.
+- `/knowledge repo https://github.com/nels0nfx/TurboFex` imports every documentation file (.md and .txt) of the WhatsApp bot repository. Run it again to refresh. In `/panel` this is the **Import TurboFex docs** button.
+- `/knowledge import <link>` imports one page or file. Importing the same link again replaces the old copy.
+- `/knowledge add <text>` adds your own notes, `/knowledge show` shows what the AI knows, `/knowledge clear` removes your notes.
 - Your notes are stored in `data/` and survive updates.
 
 ## Updating the bot (from Telegram)

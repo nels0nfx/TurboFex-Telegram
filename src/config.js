@@ -42,7 +42,8 @@ module.exports = {
   AI_FALLBACK_MODEL: (process.env.AI_FALLBACK_MODEL !== undefined ? process.env.AI_FALLBACK_MODEL : (isGroq ? 'openai/gpt-oss-120b' : isGoogle ? 'gemini-2.5-flash' : '')).trim(),
   AI_MAX_PER_MIN: Number(process.env.AI_MAX_PER_MIN) || 10,
   AI_DAILY_LIMIT: Number(process.env.AI_DAILY_LIMIT) || 300,
-  AI_KNOWLEDGE_MAX: Number(process.env.AI_KNOWLEDGE_MAX) || (isGroq ? 6000 : 12000),
+  // How much knowledge is sent with ONE question (the most relevant parts). 0 = send everything.
+  AI_KNOWLEDGE_MAX: (process.env.AI_KNOWLEDGE_MAX !== undefined && process.env.AI_KNOWLEDGE_MAX.trim() !== '') ? Math.max(0, Number(process.env.AI_KNOWLEDGE_MAX) || 0) : (isGroq ? 8000 : 24000),
   AI_MAX_TOKENS: Number(process.env.AI_MAX_TOKENS) || (isGoogle ? 800 : isGroq ? 1000 : 450),
   ALLOWED_CHATS: ids(process.env.ALLOWED_CHATS),
   DATA_DIR: path.resolve(ROOT, process.env.DATA_DIR || 'data'),

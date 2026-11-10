@@ -65,11 +65,11 @@ function register(bot, store) {
       '🧠 <b>AI & knowledge</b>',
       i.enabled ? `Provider: ${esc(i.host)}` : '⚠️ <b>No AI key set.</b> Add AI_API_KEY to config.env and restart.',
       `Model: ${esc(i.using)}${i.using !== i.model ? ' (picked automatically, configured: ' + esc(i.model) + ')' : i.fallback ? ' (backup: ' + esc(i.fallback) + ')' : ''}`,
-      `Knowledge: ${i.chars} of ${i.max} characters (built-in ${i.base}, yours ${i.extra})`,
+      `Knowledge: ${i.chars} characters (built-in ${i.base}, yours ${i.extra}). No limit; each question gets the most relevant parts${i.max ? ' (up to ' + i.max + ')' : ''}.`,
       `Today: ${i.calls} requests, ${i.errors} errors${i.lastError ? '\nLast error: ' + esc(i.lastError) : ''}`,
     ].join('\n'));
     const kb = new InlineKeyboard()
-      .text('📥 Import TurboFex README', 'pn:ki').text('🔗 Import a link', 'pn:kl').row()
+      .text('📥 Import TurboFex docs', 'pn:ki').text('🔗 Import a link', 'pn:kl').row()
       .text('➕ Add a note', 'pn:kn').text('👁 View knowledge', 'pn:kv').row()
       .text('🧪 Test a question', 'pn:kt').text('🔧 Find a working model', 'pn:km').row()
       .text('🗑 Clear my notes', 'pn:kc').row()
@@ -186,15 +186,13 @@ function register(bot, store) {
       case 'ki': {
         await ctx.answerCallbackQuery({ text: 'Importing…' });
         try {
-          const got = await ai.fetchKnowledge(WHATSAPP_REPO);
-          if (!got.text) throw new Error('The README was empty.');
-          ai.appendExtra(`## Imported from ${got.url}\n${got.text}`);
-          return show(ctx, aiMenu(`✅ Imported the TurboFex README (${got.text.length} characters).`));
+          const r = await ai.importRepo(WHATSAPP_REPO);
+          return show(ctx, aiMenu(`✅ Imported ${r.files} documentation file(s) of the TurboFex repository (${r.chars} characters).`));
         } catch (e) {
           return show(ctx, aiMenu('❌ ' + esc(e.message)));
         }
       }
-      case 'kl': return prompt('link', {}, '🔗 Send an https link to import. A GitHub repository link imports its README; a link to a file on GitHub or any text page works too.');
+      case 'kl': return prompt('link', {}, '🔗 Send an https link to import. A GitHub repository link imports all its documentation files (.md and .txt); a link to one file or any text page works too.');
       case 'kn': return prompt('note', {}, '➕ Send the note the AI should learn (commands, setup steps, answers to common questions).');
       case 'kv': {
         await ctx.answerCallbackQuery();
@@ -290,9 +288,14 @@ function register(bot, store) {
           menu = back(`✅ Note added (your notes: ${ai.appendExtra(text)} characters).`);
           break;
         case 'link': {
+          if (/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/?$/.test(text)) {
+            const r = await ai.importRepo(text);
+            menu = back(`✅ Imported ${r.files} documentation file(s) (${r.chars} characters).`);
+            break;
+          }
           const got = await ai.fetchKnowledge(text);
           if (!got.text) throw new Error('That page had no readable text.');
-          ai.appendExtra(`## Imported from ${got.url}\n${got.text}`);
+          ai.setSource(got.url, `## Imported from ${got.url}\n${got.text}`);
           menu = back(`✅ Imported ${got.text.length} characters.`);
           break;
         }
