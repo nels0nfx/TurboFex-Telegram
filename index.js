@@ -1,83 +1,74 @@
 'use strict';
-const cfg = require('./src/config');
-const { Bot } = require('grammy');
-const { Store } = require('./src/store');
-const { GENERAL, ADMIN, OWNER } = require('./src/general');
+// Supervisor: runs the bot (src/main.js) and restarts it after an update or a crash.
+// If a fresh update keeps crashing, it restores the previous version automatically.
+const { fork } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
-if (!cfg.BOT_TOKEN) {
-  console.error('❌ BOT_TOKEN is missing. Copy config.env.example to config.env and paste your BotFather token.');
-  process.exit(1);
-}
-if (/PASTE_YOUR/i.test(cfg.BOT_TOKEN)) {
-  console.error('❌ Open config.env and replace PASTE_YOUR_BOT_TOKEN_HERE with the token from @BotFather.');
-  process.exit(1);
-}
-if (!cfg.OWNER_IDS.length) console.warn('⚠️ OWNER_IDS is empty, so owner commands are disabled. Set it in config.env.');
+const ROOT = __dirname;
+const UPD = path.join(ROOT, '.update');
+const BACKUP = path.join(UPD, 'backup');
+const PENDING = path.join(UPD, 'pending.json');
+const ROLLED = path.join(UPD, 'rolledback.json');
+const MAIN = path.join(ROOT, 'src', 'main.js');
 
-const store = new Store(cfg.DATA_DIR);
-const bot = new Bot(cfg.BOT_TOKEN);
-
-bot.catch((err) => {
-  const e = err.error || err;
-  console.error('❌ Error while handling an update:', (e && (e.description || e.message)) || e);
-});
-
-// Gatekeeper: allowed groups only, and remember group names
-bot.use(async (ctx, next) => {
-  const chat = ctx.chat;
-  if (chat && (chat.type === 'group' || chat.type === 'supergroup')) {
-    if (cfg.ALLOWED_CHATS.length && !cfg.ALLOWED_CHATS.includes(chat.id)) {
-      console.log(`Leaving group ${chat.id} (not in ALLOWED_CHATS)`);
-      await ctx.api.leaveChat(chat.id).catch(() => {});
-      return;
-    }
-    const s = store.chat(chat.id);
-    if (s.title !== chat.title) { s.title = chat.title; store.save(); }
+function walk(dir, base = '') {
+  let out = [];
+  for (const n of fs.readdirSync(dir, { withFileTypes: true })) {
+    const rel = path.posix.join(base, n.name);
+    out = n.isDirectory() ? out.concat(walk(path.join(dir, n.name), rel)) : out.concat(rel);
   }
-  return next();
-});
+  return out;
+}
 
-const welcome = require('./src/welcome');
-require('./src/antilink').register(bot, store);
-welcome.register(bot, store);
-require('./src/general').register(bot, store);
-require('./src/admin').register(bot, store);
-require('./src/panel').register(bot, store);
-require('./src/support').register(bot, store);
-
-async function setCommands() {
-  const toApi = (list) => list.map(([command, description]) => ({ command, description }));
-  try {
-    await bot.api.setMyCommands(toApi(GENERAL), { scope: { type: 'default' } });
-    await bot.api.setMyCommands(toApi([...GENERAL, ...ADMIN]), { scope: { type: 'all_chat_administrators' } });
-    for (const id of cfg.OWNER_IDS) {
-      await bot.api.setMyCommands(toApi([...GENERAL, ...OWNER]), { scope: { type: 'chat', chat_id: id } }).catch(() => {});
-    }
-  } catch (e) {
-    console.error('Could not set the command menu:', e.description || e.message);
+function rollback() {
+  const dir = path.join(BACKUP, 'files');
+  if (!fs.existsSync(dir)) return false;
+  let info = {};
+  try { info = JSON.parse(fs.readFileSync(PENDING, 'utf8')); } catch (e) { /* no marker */ }
+  for (const rel of walk(dir)) {
+    const dst = path.join(ROOT, rel);
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    fs.copyFileSync(path.join(dir, rel), dst);
   }
+  fs.writeFileSync(ROLLED, JSON.stringify({ from: info.from, to: info.to }));
+  fs.rmSync(PENDING, { force: true });
+  return true;
 }
 
-function shutdown(signal) {
-  console.log(`${signal} received, saving and stopping...`);
-  store.flush();
-  bot.stop().catch(() => {});
-  setTimeout(() => process.exit(0), 500).unref();
-}
-process.once('SIGINT', () => shutdown('SIGINT'));
-process.once('SIGTERM', () => shutdown('SIGTERM'));
-process.on('unhandledRejection', (e) => console.error('Unhandled rejection:', (e && (e.description || e.message)) || e));
+let child = null;
+let stopping = false;
+let crashes = [];
 
-(async () => {
-  await bot.init();
-  console.log(`✅ TurboFex Telegram bot online as @${bot.botInfo.username}`);
-  await setCommands();
-  welcome.resume(bot.api, store);
-  await bot.start({
-    drop_pending_updates: true,
-    allowed_updates: ['message', 'callback_query'],
+function launch() {
+  const startedAt = Date.now();
+  child = fork(MAIN, [], { env: { ...process.env, TFX_SUPERVISED: '1' } });
+  child.on('exit', (code) => {
+    child = null;
+    if (stopping || code === 0) return process.exit(0);
+    if (code === 42) { console.log('🔄 Restarting with the updated files...'); return setTimeout(launch, 500); }
+    if (code === 78) return process.exit(1); // configuration problem, restarting will not help
+    const now = Date.now();
+    crashes = now - startedAt < 20000 ? crashes.filter((t) => now - t < 120000).concat(now) : [];
+    if (crashes.length >= 3 && fs.existsSync(PENDING) && rollback()) {
+      console.error('⚠️ The new version keeps crashing. Restored the previous version.');
+      crashes = [];
+      return setTimeout(launch, 1000);
+    }
+    if (crashes.length >= 6) {
+      console.error('❌ The bot keeps crashing. Stopping. Check the errors above.');
+      return process.exit(1);
+    }
+    console.error(`⚠️ Bot stopped (code ${code}). Restarting shortly...`);
+    setTimeout(launch, Math.min(30000, 2000 * Math.max(1, crashes.length)));
   });
-})().catch((e) => {
-  console.error('❌ Could not start:', (e && (e.description || e.message)) || e);
-  process.exit(1);
-});
+}
+
+for (const sig of ['SIGINT', 'SIGTERM']) {
+  process.on(sig, () => {
+    stopping = true;
+    if (child) { child.kill(sig); setTimeout(() => process.exit(0), 5000).unref(); } else process.exit(0);
+  });
+}
+
+launch();

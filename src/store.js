@@ -27,7 +27,7 @@ class Store {
     fs.mkdirSync(dir, { recursive: true });
     this.dir = dir;
     this.file = path.join(dir, 'db.json');
-    this.data = { chats: {}, pending: {}, tickets: {}, blocked: [] };
+    this.data = { chats: {}, pending: {}, tickets: {}, blocked: [], settings: {} };
     this.timer = null;
     this.load();
   }
@@ -37,7 +37,7 @@ class Store {
     try { raw = fs.readFileSync(this.file, 'utf8'); } catch (e) { if (e.code === 'ENOENT') return; throw e; }
     try {
       const j = JSON.parse(raw);
-      this.data = { chats: j.chats || {}, pending: j.pending || {}, tickets: j.tickets || {}, blocked: j.blocked || [] };
+      this.data = { chats: j.chats || {}, pending: j.pending || {}, tickets: j.tickets || {}, blocked: j.blocked || [], settings: j.settings || {} };
     } catch (e) {
       const bak = path.join(this.dir, `db.corrupt-${Date.now()}.json`);
       fs.writeFileSync(bak, raw);

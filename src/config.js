@@ -25,6 +25,10 @@ module.exports = {
   BOT_TOKEN: (process.env.BOT_TOKEN || '').trim(),
   OWNER_IDS: ids(process.env.OWNER_IDS || process.env.OWNER_ID),
   SUPPORT_IDS: ids(process.env.SUPPORT_IDS),
+  UPDATE_REPO: (process.env.UPDATE_REPO || 'nels0nfx/TurboFex-Telegram').trim(),
+  UPDATE_BRANCH: (process.env.UPDATE_BRANCH || 'main').trim(),
+  GITHUB_TOKEN: (process.env.GITHUB_TOKEN || '').trim(),
+  AUTO_UPDATE_HOURS: Number(process.env.AUTO_UPDATE_HOURS) || 6,
   ALLOWED_CHATS: ids(process.env.ALLOWED_CHATS),
   DATA_DIR: path.resolve(ROOT, process.env.DATA_DIR || 'data'),
 };

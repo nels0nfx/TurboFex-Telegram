@@ -41,6 +41,23 @@ Durations: `30s`, `10m`, `2h`, `1d`, `1w`. Without a duration `/mute` and `/ban`
 - `ALLOWED_CHATS` : group IDs the bot may work in. It leaves every other group. Send `/id` in your group to get its ID.
 - `DATA_DIR` : where settings and warnings are saved (default `data`). Keep this folder when you update the bot.
 
-## Updating
+## Updating the bot (from Telegram)
 
-Replace the files with the new version and restart, but **keep your own `config.env`** (it holds your token) and the `data/` folder. When unzipping an update on the host, skip it: `unzip -o TurboFex-Telegram-vX.Y.Z.zip -x config.env`.
+The bot updates itself from this GitHub repository, so you never have to upload files to the panel again.
+
+1. Push the new version to GitHub as usual (raise the `version` in `package.json`).
+2. In a private chat with the bot send **/update**. It shows the new version, you tap **Install & restart**, and it comes back by itself.
+
+- **/autoupdate on** : checks GitHub every few hours (`AUTO_UPDATE_HOURS`) and installs newer versions by itself. Off by default, because it installs whatever is pushed to the branch.
+- **/update force** : reinstall the GitHub files even if the version number is the same.
+- **/rollback** : go back to the previous version.
+- **/version** : show the running version.
+
+Safety: the new files are syntax-checked before anything is replaced, the old version is backed up, and if a new version keeps crashing right after an update the bot restores the old one by itself and tells you.
+
+Never touched by an update: `config.env` (your token), `data/` (settings and warnings) and `OWNER_PREFERENCES.private.md`.
+
+Notes:
+- Keep the startup command as `node index.js`. `index.js` restarts the bot after updates.
+- A private repository needs `GITHUB_TOKEN` in `config.env` (a GitHub token with read access to the repo).
+- Updating from the bot only works from this version on. Installing this first version is a normal upload (keep your own `config.env`).

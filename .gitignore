@@ -4,3 +4,4 @@ config.env
 data/
 OWNER_PREFERENCES.private.md
 *.log
+.update/
