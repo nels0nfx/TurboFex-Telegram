@@ -35,6 +35,8 @@ module.exports = {
   UPDATE_BRANCH: (process.env.UPDATE_BRANCH || 'main').trim(),
   GITHUB_TOKEN: (process.env.GITHUB_TOKEN || '').trim(),
   AUTO_UPDATE_HOURS: Number(process.env.AUTO_UPDATE_HOURS) || 6,
+  RELEASE_REPO: (process.env.RELEASE_REPO || 'nels0nfx/TurboFex').trim(),
+  RELEASE_CHECK_HOURS: Number(process.env.RELEASE_CHECK_HOURS) || 2,
   // AI answers (any OpenAI-compatible API; defaults to Google Gemini's free tier)
   AI_API_KEY: aiKey,
   AI_BASE_URL: aiBase,

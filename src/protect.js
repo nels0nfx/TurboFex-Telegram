@@ -2,6 +2,7 @@
 const { isGroup, isSenderAdmin } = require('./perms');
 const actions = require('./actions');
 const warnMod = require('./warn');
+const guard = require('./guard');
 const { say, mention, displayName, autoDelete } = require('./util');
 
 const LOCK_TYPES = {
@@ -9,6 +10,8 @@ const LOCK_TYPES = {
   forwards: 'Forwarded messages', polls: 'Polls', contacts: 'Contacts & locations', invites: 'Invite links', inline: 'Inline bots',
 };
 const INVITE = /(?:t(?:elegram)?\.me\/(?:\+|joinchat\/)|telegram\.dog\/joinchat)/i;
+
+const hasLink = (msg) => [...(msg.entities || []), ...(msg.caption_entities || [])].some((e) => e.type === 'url' || e.type === 'text_link');
 
 function lockHit(msg, locks) {
   const text = msg.text || msg.caption || '';
@@ -72,6 +75,7 @@ function register(bot, store) {
     }
     const n = await say(ctx, text);
     if (n) autoDelete(ctx.api, chatId, n.message_id, 10000);
+    guard.logAction({ api: ctx.api, chat: ctx.chat, from: ctx.me && { id: ctx.me.id, first_name: 'Protection' } }, store, 'Protection: ' + v.kind, target, v.reason || '');
   }
 
   bot.on('message', async (ctx, next) => {
@@ -80,12 +84,14 @@ function register(bot, store) {
     if (!(msg.text || msg.caption || msg.sticker || msg.animation || msg.photo || msg.video || msg.video_note || msg.voice || msg.audio || msg.document || msg.poll || msg.contact || msg.location || msg.venue)) return next();
     const s = store.chat(ctx.chat.id);
     const lockOn = Object.keys(s.locks).some((k) => s.locks[k]);
-    if (!s.antispam.enabled && !s.antimention.enabled && !s.words.length && !lockOn) return next();
+    const newbieOn = s.newbie.hours > 0;
+    if (!s.antispam.enabled && !s.antimention.enabled && !s.words.length && !lockOn && !newbieOn && !s.aiscan) return next();
 
     const text = msg.text || msg.caption || '';
     let v = null;
     const lock = lockOn && lockHit(msg, s.locks);
     if (lock) v = { kind: 'lock', reason: `${LOCK_TYPES[lock].toLowerCase()} are not allowed here` };
+    if (!v && newbieOn && guard.isNewbie(s, ctx.from.id) && (hasLink(msg) || msg.forward_origin || INVITE.test(text))) v = { kind: 'lock', reason: 'new members cannot send links or forwards yet' };
     if (!v && s.words.length && text && wordsRegex(ctx.chat.id, s.words).test(text)) v = { kind: 'word' };
     if (!v && s.antimention.enabled) {
       const mentions = [...(msg.entities || []), ...(msg.caption_entities || [])].filter((e) => e.type === 'mention' || e.type === 'text_mention');
@@ -95,7 +101,13 @@ function register(bot, store) {
       const reason = floodHit(ctx.chat.id, ctx.from.id, text, s.antispam);
       if (reason) v = { kind: 'spam', reason };
     }
-    if (!v) return next();
+    if (!v) {
+      if (s.aiscan && guard.looksSuspicious(text)) {
+        // checked in the background so the bot keeps handling other messages meanwhile
+        (async () => { if (s.approved.includes(ctx.from.id) || (await isSenderAdmin(ctx))) return; await guard.scanMessage(ctx, store, s); })().catch((e) => console.error('aiscan:', e.message));
+      }
+      return next();
+    }
     if (s.approved.includes(ctx.from.id) || (await isSenderAdmin(ctx))) return next();
     return punish(ctx, s, v);
   });

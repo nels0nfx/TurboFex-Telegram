@@ -2,6 +2,7 @@
 const { adminOnly, isAdminId, botRights } = require('./perms');
 const actions = require('./actions');
 const warnMod = require('./warn');
+const guard = require('./guard');
 const cfg = require('./config');
 const { say, mention, mentionOf, esc, getTarget, parseDuration, fmtDuration, onOff } = require('./util');
 
@@ -32,7 +33,9 @@ function register(bot, store) {
   bot.command('warn', adminOnly, async (ctx) => {
     const p = await pick(ctx); if (!p) return;
     try {
-      return say(ctx, await warnMod.warn(ctx.api, store, ctx.chat.id, p.target, p.rest.join(' ')));
+      const out = await warnMod.warn(ctx.api, store, ctx.chat.id, p.target, p.rest.join(' '));
+      guard.logAction(ctx, store, 'Warn', p.target, p.rest.join(' '));
+      return say(ctx, out);
     } catch (e) { return fail(ctx, e); }
   });
 
@@ -61,6 +64,7 @@ function register(bot, store) {
     const p = await pick(ctx); if (!p) return;
     const { dur, reason } = durationAndReason(p.rest);
     try { await actions.mute(ctx.api, ctx.chat.id, p.target.id, dur || 0); } catch (e) { return fail(ctx, e); }
+    guard.logAction(ctx, store, 'Mute', p.target, (dur ? fmtDuration(dur) + ' · ' : '') + reason);
     return say(ctx, `🔇 ${mentionOf(p.target)} muted ${dur ? 'for ' + fmtDuration(dur) : 'until an admin uses /unmute'}.${reasonLine(reason)}`);
   });
 
@@ -68,12 +72,14 @@ function register(bot, store) {
     const { target } = getTarget(ctx);
     if (!target) return say(ctx, 'Reply to a user\'s message, or give their numeric ID.');
     try { await actions.unmute(ctx.api, ctx.chat.id, target.id); } catch (e) { return fail(ctx, e); }
+    guard.logAction(ctx, store, 'Unmute', target);
     return say(ctx, `🔊 ${mentionOf(target)} can talk again.`);
   });
 
   bot.command('kick', adminOnly, async (ctx) => {
     const p = await pick(ctx); if (!p) return;
     try { await actions.kick(ctx.api, ctx.chat.id, p.target.id); } catch (e) { return fail(ctx, e); }
+    guard.logAction(ctx, store, 'Kick', p.target, p.rest.join(' '));
     return say(ctx, `👢 ${mentionOf(p.target)} was removed. They can rejoin with an invite link.${reasonLine(p.rest.join(' '))}`);
   });
 
@@ -81,6 +87,7 @@ function register(bot, store) {
     const p = await pick(ctx); if (!p) return;
     const { dur, reason } = durationAndReason(p.rest);
     try { await actions.ban(ctx.api, ctx.chat.id, p.target.id, dur || 0); } catch (e) { return fail(ctx, e); }
+    guard.logAction(ctx, store, 'Ban', p.target, (dur ? fmtDuration(dur) + ' · ' : '') + reason);
     return say(ctx, `⛔ ${mentionOf(p.target)} banned ${dur ? 'for ' + fmtDuration(dur) : 'permanently'}.${reasonLine(reason)}`);
   });
 
@@ -88,6 +95,7 @@ function register(bot, store) {
     const { target } = getTarget(ctx);
     if (!target) return say(ctx, 'Give the numeric ID of the user: <code>/unban 123456789</code>');
     try { await actions.unban(ctx.api, ctx.chat.id, target.id); } catch (e) { return fail(ctx, e); }
+    guard.logAction(ctx, store, 'Unban', target);
     return say(ctx, `✅ ${mentionOf(target)} was unbanned.`);
   });
 

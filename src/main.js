@@ -17,9 +17,11 @@ if (!cfg.OWNER_IDS.length) console.warn('⚠️ OWNER_IDS is empty, so owner com
 const store = new Store(cfg.DATA_DIR);
 const bot = new Bot(cfg.BOT_TOKEN);
 
+const ops = require('./ops');
 bot.catch((err) => {
   const e = err.error || err;
   console.error('❌ Error while handling an update:', (e && (e.description || e.message)) || e);
+  ops.alertError(bot.api, 'update', e);
 });
 
 // Gatekeeper: allowed groups only, and remember group names
@@ -31,6 +33,7 @@ bot.use(async (ctx, next) => {
       await ctx.api.leaveChat(chat.id).catch(() => {});
       return;
     }
+    if (ctx.msg) store.countMessage(chat.id);
     const s = store.chat(chat.id);
     if (s.title !== chat.title) { s.title = chat.title; store.save(); }
   }
@@ -46,8 +49,16 @@ require('./admin').register(bot, store);
 require('./panel').register(bot, store);
 const updater = require('./updater');
 updater.register(bot, store);
+const guard = require('./guard');
+const community = require('./community');
+const releases = require('./releases');
+guard.register(bot, store);
+community.register(bot, store);      // XP is counted before keyword filters answer
+require('./aitools').register(bot, store);
 require('./tools').register(bot, store);
 require('./triggers').register(bot, store);
+releases.register(bot, store);
+ops.register(bot, store);
 require('./ai').register(bot, store);
 require('./support').register(bot, store);
 
@@ -72,7 +83,10 @@ function shutdown(signal) {
 }
 process.once('SIGINT', () => shutdown('SIGINT'));
 process.once('SIGTERM', () => shutdown('SIGTERM'));
-process.on('unhandledRejection', (e) => console.error('Unhandled rejection:', (e && (e.description || e.message)) || e));
+process.on('unhandledRejection', (e) => {
+  console.error('Unhandled rejection:', (e && (e.description || e.message)) || e);
+  ops.alertError(bot.api, 'background', e);
+});
 
 (async () => {
   await bot.init();
@@ -83,8 +97,16 @@ process.on('unhandledRejection', (e) => console.error('Unhandled rejection:', (e
   welcome.resume(bot.api, store);
   await bot.start({
     drop_pending_updates: true,
-    allowed_updates: ['message', 'callback_query'],
-    onStart: () => updater.onBoot(bot.api, store),
+    allowed_updates: ['message', 'callback_query', 'chat_member'],
+    onStart: () => {
+      updater.onBoot(bot.api, store);
+      releases.start(bot.api, store);
+      // background jobs every 30 seconds: reminders, schedules, giveaways, night mode, raid timers, warning expiry
+      setInterval(() => {
+        guard.tick(bot.api, store).catch((e) => console.error('tick:', e.message));
+        community.tick(bot.api, store).catch((e) => console.error('tick:', e.message));
+      }, 30000).unref();
+    },
   });
 })().catch((e) => {
   console.error('❌ Could not start:', (e && (e.description || e.message)) || e);

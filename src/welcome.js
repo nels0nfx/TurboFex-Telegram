@@ -1,6 +1,7 @@
 'use strict';
 const { InlineKeyboard } = require('grammy');
 const actions = require('./actions');
+const guard = require('./guard');
 const { isGroup, isAdminId } = require('./perms');
 const { say, sayTo, mention, esc, displayName, fill, autoDelete } = require('./util');
 
@@ -74,6 +75,7 @@ function register(bot, store) {
         }
         continue;
       }
+      if (await guard.onJoin(ctx, store, s, u)) continue;
       if (s.captcha.enabled && (await startCaptcha(ctx, s, u))) continue;
       if (s.welcome.enabled) await say(ctx, welcomeText(s, ctx.chat.title, u));
     }

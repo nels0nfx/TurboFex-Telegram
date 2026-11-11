@@ -2,6 +2,7 @@
 const { adminOnly, isGroup } = require('./perms');
 const { defaults } = require('./store');
 const actions = require('./actions');
+const guard = require('./guard');
 const { LOCK_TYPES } = require('./protect');
 const { say, esc, mention, mentionOf, displayName, getTarget, onOff, autoDelete } = require('./util');
 
@@ -198,6 +199,7 @@ function register(bot, store) {
     try {
       for (let i = 0; i < ids.length; i += 100) await ctx.api.deleteMessages(ctx.chat.id, ids.slice(i, i + 100));
     } catch (e) { return say(ctx, '⚠️ ' + esc(actions.explain(e))); }
+    guard.logAction(ctx, store, 'Purge', null, `${ids.length} message ids`);
     const n = await ctx.api.sendMessage(ctx.chat.id, '🧹 Cleaned up.', { message_thread_id: ctx.msg.message_thread_id }).catch(() => null);
     if (n) autoDelete(ctx.api, ctx.chat.id, n.message_id, 4000);
   });

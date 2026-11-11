@@ -2,7 +2,7 @@
 const cfg = require('./config');
 const { ownerOnly } = require('./perms');
 const ai = require('./ai');
-const { say, esc, mention, autoDelete } = require('./util');
+const { say, sayTo, esc, mention, displayName, fmtDuration, autoDelete } = require('./util');
 
 const hits = new Map();
 const acked = new Map();
@@ -19,6 +19,7 @@ function tooFast(uid) {
   return arr.length > 5;
 }
 
+const support = {};
 function register(bot, store) {
   const staffOnly = async (ctx, next) => {
     if (!ctx.from || !isStaff(ctx.from.id)) return;
@@ -37,8 +38,20 @@ function register(bot, store) {
     if (store.isBlocked(uid) || tooFast(uid)) return;
     const targets = staff();
     if (!targets.length) return say(ctx, 'Support is not set up yet. Please try again later.');
+    const sup = store.data.support;
+    let tk = Object.values(sup.items).find((x) => x.userId === uid && x.status === 'open');
+    const isNew = !tk;
+    if (isNew) {
+      tk = { id: sup.next++, userId: uid, name: displayName(ctx.from), username: ctx.from.username || '', status: 'open', created: Date.now(), updated: Date.now(), count: 0 };
+      sup.items[tk.id] = tk;
+      const keys = Object.keys(sup.items);
+      if (keys.length > 1000) keys.filter((k) => sup.items[k].status === 'closed').slice(0, keys.length - 1000).forEach((k) => delete sup.items[k]);
+    }
+    tk.count++;
+    tk.updated = Date.now();
+    store.save();
     const user = ctx.from.username ? ` (@${esc(ctx.from.username)})` : '';
-    const header = `📩 <b>Support message</b>\nFrom: ${mention(ctx.from)}${user}\nID: <code>${uid}</code>\n<i>Reply to this message to answer.</i>`;
+    const header = `📩 <b>Ticket #${tk.id}</b>${isNew ? ' (new)' : ''}\nFrom: ${mention(ctx.from)}${user}\nID: <code>${uid}</code>\n<i>Reply to this message to answer.</i>`;
     let delivered = 0;
     for (const t of targets) {
       try {
@@ -52,9 +65,9 @@ function register(bot, store) {
       }
     }
     if (!delivered) return say(ctx, '⚠️ I could not reach the team right now. Please try again later.');
-    if (always || Date.now() - (acked.get(uid) || 0) > 600000) {
+    if (isNew || always || Date.now() - (acked.get(uid) || 0) > 600000) {
       acked.set(uid, Date.now());
-      await say(ctx, '✅ Sent to the team. You will get the reply here.');
+      await say(ctx, isNew ? `✅ Sent to the team as <b>ticket #${tk.id}</b>. You will get the reply here.` : '✅ Sent to the team. You will get the reply here.');
     }
   }
 
@@ -95,6 +108,35 @@ function register(bot, store) {
     }
   });
 
+  bot.command('tickets', staffOnly, async (ctx) => {
+    const open = Object.values(store.data.support.items).filter((t) => t.status === 'open').sort((a, b) => a.created - b.created);
+    return say(ctx, open.length
+      ? '📋 <b>Open tickets</b>\n' + open.slice(0, 30).map((t) => `#${t.id} · ${esc(t.name)} · ${t.count} msg · ${fmtDuration(Math.round((Date.now() - t.created) / 1000))} ago`).join('\n') + '\n\n<code>/close 12 optional message</code> closes one.'
+      : '✅ No open tickets.');
+  });
+
+  async function closeTicket(api, id, msg) {
+    const t = store.data.support.items[id];
+    if (!t || t.status !== 'open') return null;
+    t.status = 'closed';
+    t.closed = Date.now();
+    store.save();
+    sayTo(api, t.userId, `✅ Your ticket #${t.id} was closed.${msg ? '\n' + esc(msg) : ''}\nWrite to me again any time to open a new one.`);
+    return t;
+  }
+  bot.command('close', staffOnly, async (ctx) => {
+    const m = /^#?(\d+)\s*([\s\S]*)$/.exec(String(ctx.match || '').trim());
+    if (!m) return say(ctx, 'Usage: <code>/close 12</code> or <code>/close 12 Thanks, glad it works now!</code>');
+    const t = await closeTicket(ctx.api, Number(m[1]), m[2].trim().slice(0, 500));
+    return say(ctx, t ? `✅ Ticket #${t.id} closed and ${esc(t.name)} was told.` : 'There is no open ticket with that number.');
+  });
+  bot.command('mytickets', async (ctx) => {
+    if (ctx.chat.type !== 'private' || !ctx.from) return;
+    const mine = Object.values(store.data.support.items).filter((t) => t.userId === ctx.from.id).sort((a, b) => b.created - a.created).slice(0, 5);
+    return say(ctx, mine.length ? '🎫 <b>Your tickets</b>\n' + mine.map((t) => `#${t.id} · ${t.status === 'open' ? '🟢 open' : '⚪ closed'} · ${new Date(t.created).toISOString().slice(0, 10)}`).join('\n') : 'You have no tickets. Just write me a message to open one.');
+  });
+  support.closeTicket = closeTicket;
+
   bot.command('block', ownerOnly, async (ctx) => {
     const id = Number(String(ctx.match || '').trim());
     if (!Number.isInteger(id) || id < 10000) return say(ctx, 'Usage: <code>/block 123456789</code>');
@@ -119,4 +161,4 @@ function register(bot, store) {
   });
 }
 
-module.exports = { register };
+module.exports = { register, support };

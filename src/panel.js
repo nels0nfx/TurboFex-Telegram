@@ -6,12 +6,19 @@ const { say, esc } = require('./util');
 const ai = require('./ai');
 const updater = require('./updater');
 const { LOCK_TYPES } = require('./protect');
+const ops = require('./ops');
+const { support } = require('./support');
 
 const WHATSAPP_REPO = 'https://github.com/nels0nfx/TurboFex';
 const NEXT_ACTION = { mute: 'kick', kick: 'ban', ban: 'mute' };
 const NEXT_TIMEOUT = { 30: 60, 60: 120, 120: 300, 300: 30 };
-const GROUP_ACTS = ['g', 't', 'l', 'a', 'ct', 'sl', 'sa', 'ml', 'k', 'sw', 'sp', 'lk', 'cn', 'wt', 'gt', 'ru', 'fq', 'fa', 'fd', 'fl', 'fn', 'fx', 'wl', 'wn', 'wx', 'cw', 'cy'];
+const GROUP_ACTS = ['mo', 'nb', 'we', 'rt', 'g', 't', 'l', 'a', 'ct', 'sl', 'sa', 'ml', 'k', 'sw', 'sp', 'lk', 'cn', 'wt', 'gt', 'ru', 'fq', 'fa', 'fd', 'fl', 'fn', 'fx', 'wl', 'wn', 'wx', 'cw', 'cy'];
 const NEXT_SPAM = { mute: 'warn', warn: 'kick', kick: 'mute' };
+const NEXT_NEWBIE = { 0: 6, 6: 24, 24: 72, 72: 0 };
+const NEXT_EXPIRY = { 0: 7, 7: 14, 14: 30, 30: 0 };
+const NEXT_RAID = { 5: 8, 8: 12, 12: 20, 20: 5 };
+const WELCOME_KEYS = ['w', 'g', 'c', 'v'];
+const MORE_KEYS = ['lv', 'rl', 'ra', 'gs', 'as', 'su', 'nm', 'rm'];
 const onOff = (v) => (v ? 'ON' : 'OFF');
 const version = () => { try { return updater.currentVersion(); } catch (e) { return '?'; } };
 const note = (n, text) => (n ? n + '\n\n' : '') + text;
@@ -25,7 +32,8 @@ function register(bot, store) {
     kb: new InlineKeyboard()
       .text('👥 Groups', 'pn:gl').text('🧠 AI & knowledge', 'pn:ai').row()
       .text('🔄 Updates', 'pn:u').text('📩 Support', 'pn:s').row()
-      .text('📊 Status', 'pn:st').text('📢 Announce', 'pn:an'),
+      .text('📊 Status', 'pn:st').text('📈 Stats', 'pn:ss').row()
+      .text('📢 Announce', 'pn:an'),
   });
 
   function groupsMenu() {
@@ -47,9 +55,23 @@ function register(bot, store) {
     const kb = new InlineKeyboard()
       .text('👋 Welcome & captcha', `pn:sw:${id}`).text('🛡 Protection', `pn:sp:${id}`).row()
       .text('🔒 Locks', `pn:lk:${id}`).text('📝 Content', `pn:cn:${id}`).row()
-      .text('🧹 Clear warnings', `pn:cw:${id}`).row()
+      .text('🧰 More', `pn:mo:${id}`).text('🧹 Clear warnings', `pn:cw:${id}`).row()
       .text('⬅️ Back', 'pn:gl');
     return { text, kb };
+  }
+
+  function moreMenu(id, n) {
+    const s = store.chat(id);
+    const raidOn = s.raid.active > Date.now();
+    const kb = new InlineKeyboard()
+      .text(`🏅 Levels: ${onOff(s.levels.enabled)}`, `pn:t:${id}:lv`).text(`📦 Release news: ${onOff(s.releases)}`, `pn:t:${id}:rl`).row()
+      .text(`🚨 Raid auto: ${onOff(s.raid.auto)}`, `pn:t:${id}:ra`).text(`Raid at ${s.raid.threshold}/min`, `pn:rt:${id}`).row()
+      .text(`🚨 Raid mode now: ${onOff(raidOn)}`, `pn:t:${id}:rm`).row()
+      .text(`🌐 Global bans: ${onOff(s.gban)}`, `pn:t:${id}:gs`).text(`🤖 AI scan: ${onOff(s.aiscan)}`, `pn:t:${id}:as`).row()
+      .text(`📝 Summaries: ${onOff(s.summary)}`, `pn:t:${id}:su`).text(`🌙 Night mode: ${onOff(s.night.enabled)}`, `pn:t:${id}:nm`).row()
+      .text(`🆕 New members: ${s.newbie.hours ? s.newbie.hours + 'h' : 'off'}`, `pn:nb:${id}`).text(`⏳ Warn expiry: ${s.warnExpiryDays ? s.warnExpiryDays + 'd' : 'off'}`, `pn:we:${id}`).row()
+      .text('⬅️ Back', `pn:g:${id}`);
+    return { text: note(n, `🧰 <b>More</b> · ${title(s, id)}\nLog channel: ${s.log.chat ? s.log.chat : 'off (set with /setlog)'} · Time zone: UTC${s.tz >= 0 ? '+' : ''}${s.tz} (/timezone)\nNight mode ${s.night.from}–${s.night.to} (/nightmode) · New members cannot send links or forwards for the chosen hours.`), kb };
   }
 
   function welcomeMenu(id, n) {
@@ -137,7 +159,7 @@ function register(bot, store) {
       .text('📥 Import TurboFex docs', 'pn:ki').text('🔗 Import a link', 'pn:kl').row()
       .text('➕ Add a note', 'pn:kn').text('👁 View knowledge', 'pn:kv').row()
       .text('🧪 Test a question', 'pn:kt').text('🔧 Find a working model', 'pn:km').row()
-      .text('🗑 Clear my notes', 'pn:kc').row()
+      .text('🗑 Clear my notes', 'pn:kc').text(`📚 Sources: ${onOff(ai.aiSources())}`, 'pn:ks').row()
       .text('⬅️ Back', 'pn:b');
     return { text, kb };
   }
@@ -157,8 +179,8 @@ function register(bot, store) {
   function supportMenu(n) {
     const staff = new Set([...cfg.OWNER_IDS, ...cfg.SUPPORT_IDS]).size;
     return {
-      text: note(n, `📩 <b>Support inbox</b>\nTeam members who receive messages: ${staff}\nBlocked users: ${store.data.blocked.length}`),
-      kb: new InlineKeyboard().text('🚫 Block an ID', 'pn:sn').text('📋 Blocked list', 'pn:sb').row().text('⬅️ Back', 'pn:b'),
+      text: note(n, `📩 <b>Support inbox</b>\nTeam members who receive messages: ${staff}\nOpen tickets: ${Object.values(store.data.support.items).filter((t) => t.status === 'open').length} · Blocked users: ${store.data.blocked.length}`),
+      kb: new InlineKeyboard().text('📋 Open tickets', 'pn:tk').row().text('🚫 Block an ID', 'pn:sn').text('📋 Blocked list', 'pn:sb').row().text('⬅️ Back', 'pn:b'),
     };
   }
 
@@ -176,6 +198,25 @@ function register(bot, store) {
       text: `📊 <b>Status</b>\nVersion: v${esc(version())}\nUptime: ${Math.floor(up / 3600)}h ${Math.floor((up % 3600) / 60)}m\nMemory: ${Math.round(process.memoryUsage().rss / 1048576)} MB\nGroups known: ${store.chatIds().length}\nPending captchas: ${store.allPending().length}\nAI: ${i.enabled ? 'on' : 'off'}\nNode: ${process.version}`,
       kb: new InlineKeyboard().text('🔄 Refresh', 'pn:st').text('⬅️ Back', 'pn:b'),
     };
+  }
+
+  const sel = new Map(); // owner id -> chats chosen for an announcement
+  function announceMenu(ownerId) {
+    const ids = store.chatIds().slice(0, 30);
+    if (!sel.has(ownerId)) sel.set(ownerId, new Set(ids));
+    const chosen = sel.get(ownerId);
+    const kb = new InlineKeyboard();
+    for (const id of ids) kb.text(`${chosen.has(id) ? '✅' : '⬜'} ${store.chat(id).title || id}`, `pn:as:${id}`).row();
+    kb.text('Select all', 'pn:aa:1').text('Select none', 'pn:aa:0').row().text('➡️ Write the message', 'pn:ag').row().text('⬅️ Back', 'pn:b');
+    return { text: ids.length ? `📢 <b>Announce</b>\nChoose the groups (${chosen.size} selected):` : '📢 I am not in any group yet.', kb };
+  }
+
+  function ticketsMenu(n) {
+    const open = Object.values(store.data.support.items).filter((t) => t.status === 'open').sort((a, b) => a.created - b.created);
+    const kb = new InlineKeyboard();
+    open.slice(0, 15).forEach((t) => kb.text(`✅ Close #${t.id} · ${t.name.slice(0, 16)}`, `pn:tc:${t.id}`).row());
+    kb.text('⬅️ Back', 'pn:s');
+    return { text: note(n, open.length ? `📋 <b>Open tickets (${open.length})</b>\nAnswer by replying to the ticket message in your chat with me. Tap to close:` : '✅ No open tickets.'), kb };
   }
 
   const confirm = (text, yes, no) => ({ text, kb: new InlineKeyboard().text('✅ Yes', yes).text('No', no) });
@@ -222,6 +263,10 @@ function register(bot, store) {
       case 'x': awaiting.delete(ctx.from.id); return done(mainMenu());
       case 'gl': return done(groupsMenu());
       case 'g': return done(groupMenu(ctx, id));
+      case 'mo': return done(moreMenu(id));
+      case 'nb': s.newbie.hours = NEXT_NEWBIE[s.newbie.hours] || 0; store.save(); return done(moreMenu(id));
+      case 'we': s.warnExpiryDays = NEXT_EXPIRY[s.warnExpiryDays] || 0; store.save(); return done(moreMenu(id));
+      case 'rt': s.raid.threshold = NEXT_RAID[s.raid.threshold] || 8; store.save(); return done(moreMenu(id));
       case 'sw': return done(welcomeMenu(id));
       case 'sp': return done(protectMenu(id));
       case 'lk': return done(locksMenu(id));
@@ -236,8 +281,16 @@ function register(bot, store) {
         if (b === 'b') s.antibot = !s.antibot;
         if (b === 'm') s.antimention.enabled = !s.antimention.enabled;
         if (b === 'i') s.ai.enabled = !s.ai.enabled;
+        if (b === 'lv') s.levels.enabled = !s.levels.enabled;
+        if (b === 'rl') s.releases = !s.releases;
+        if (b === 'ra') s.raid.auto = !s.raid.auto;
+        if (b === 'gs') s.gban = !s.gban;
+        if (b === 'as') s.aiscan = !s.aiscan;
+        if (b === 'su') s.summary = !s.summary;
+        if (b === 'nm') s.night.enabled = !s.night.enabled;
+        if (b === 'rm') s.raid.active = s.raid.active > Date.now() ? 0 : 1e15;
         store.save();
-        return done('wgcv'.includes(b) ? welcomeMenu(id) : protectMenu(id));
+        return done(MORE_KEYS.includes(b) ? moreMenu(id) : WELCOME_KEYS.includes(b) ? welcomeMenu(id) : protectMenu(id));
       }
       case 'l':
         s.warnLimit = Math.min(20, Math.max(1, s.warnLimit + (b === '+' ? 1 : -1)));
@@ -332,7 +385,18 @@ function register(bot, store) {
       case 'sn': return prompt('block', {}, '🚫 Send the numeric Telegram ID of the user to block from support.');
       case 'su': store.unblock(id); toast = 'Unblocked'; return done(blockedMenu());
       case 'st': return done(statusMenu());
-      case 'an': return prompt('announce', {}, '📢 Send the announcement. It goes to every group I am in.');
+      case 'an': return done(announceMenu(ctx.from.id));
+      case 'as': { const c = sel.get(ctx.from.id) || new Set(); if (store.chatIds().includes(id)) { if (c.has(id)) c.delete(id); else c.add(id); } sel.set(ctx.from.id, c); return done(announceMenu(ctx.from.id)); }
+      case 'aa': sel.set(ctx.from.id, a === '1' ? new Set(store.chatIds()) : new Set()); return done(announceMenu(ctx.from.id));
+      case 'ag': {
+        const chosen = [...(sel.get(ctx.from.id) || [])].filter((x) => store.chatIds().includes(x));
+        if (!chosen.length) { toast = 'Select at least one group'; return done(announceMenu(ctx.from.id)); }
+        return prompt('announce', { sel: chosen }, `📢 Send the announcement. It goes to ${chosen.length} group(s).`);
+      }
+      case 'ss': { await ctx.answerCallbackQuery({ text: 'Collecting stats…' }); return show(ctx, { text: await ops.statsText(ctx.api, store), kb: new InlineKeyboard().text('🔄 Refresh', 'pn:ss').text('⬅️ Back', 'pn:b') }); }
+      case 'tk': return done(ticketsMenu());
+      case 'tc': { const t = await support.closeTicket(ctx.api, id, ''); toast = t ? 'Closed' : 'Not open'; return done(ticketsMenu(t ? `✅ Closed #${id}.` : '')); }
+      case 'ks': ai.setAiSources(!ai.aiSources()); return done(aiMenu());
       default: return ctx.answerCallbackQuery();
     }
   });
@@ -441,7 +505,7 @@ function register(bot, store) {
         }
         case 'announce': {
           let ok = 0;
-          for (const cid of store.chatIds()) { try { await ctx.api.sendMessage(cid, '📢 ' + text); ok++; } catch (e) { /* removed from that group */ } }
+          for (const cid of (w.sel || store.chatIds())) { try { await ctx.api.sendMessage(cid, '📢 ' + text); ok++; } catch (e) { /* removed from that group */ } }
           menu = back(`✅ Sent to ${ok} group(s).`);
           break;
         }

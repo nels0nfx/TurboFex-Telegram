@@ -40,4 +40,4 @@ function explain(e) {
   return 'Telegram refused: ' + d;
 }
 
-module.exports = { mute, unmute, ban, unban, kick, explain };
+module.exports = { mute, unmute, ban, unban, kick, explain, NO_PERMS, FULL_PERMS };

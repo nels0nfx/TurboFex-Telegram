@@ -51,6 +51,35 @@ Durations: `30s`, `10m`, `2h`, `1d`, `1w`. Without a duration `/mute` and `/ban`
 - `ALLOWED_CHATS` : group IDs the bot may work in. It leaves every other group. Send `/id` in your group to get its ID.
 - `DATA_DIR` : where settings and warnings are saved (default `data`). Keep this folder when you update the bot.
 
+## More features (v0.4.5)
+
+All of these are off by default and can be switched on per group in `/panel` → Groups → your group → **More**.
+
+**Safety**
+- `/raidmode on|off|auto on` : when many people join within a minute, new members are removed for a while (`/panel` has the threshold).
+- `/newbie 24` : new members cannot send links or forwards for their first 24 hours.
+- `/aiscan on` : the AI checks messages with links or money talk and removes scams (admins and approved users are skipped).
+- `/gban <id> reason` (owner), `/ungban`, `/gbans` : one ban list for all your groups; `/gbansync off` opts a group out.
+- `/setlog <channel id>` : every warn, mute, ban, kick, raid and AI removal is posted to your log channel.
+- `/warnexpiry 14` : warnings disappear after 14 days.
+
+**Community**
+- `/levels on` : members earn XP by chatting; `/rank`, `/top`, `/daily` (with streaks).
+- `/giveaway 30m 2 Prize` (time, winners, prize) with a Join button; `/giveaway end`.
+- `/poll Question | a | b` and `/quiz Question | *right | wrong`.
+- `/invite` gives each member a personal link, `/invites` shows the top inviters.
+- `/remind 2h text`, `/reminders`, `/unremind 1` (also works in private chat).
+- `/schedule every 6h text` or `/schedule daily 18:00 text`, `/schedule list`, `/schedule del 2`; `/timezone +1` sets the group time zone.
+- `/nightmode on 23:00 06:00` locks the chat at night and restores the old permissions in the morning.
+
+**Release news:** `/changelog` shows the latest GitHub release of the WhatsApp bot. `/releases on` makes the bot post new releases by itself (`RELEASE_REPO`, `RELEASE_CHECK_HOURS` in config.env).
+
+**AI tools:** `/translate [language]` and `/explain` (reply to a message), `/summary [N]` (an admin switches it on with `/summary on`; the last 200 messages are kept in memory only). AI answers can name the section they used (`/aisources on|off`).
+
+**Support tickets:** every private message becomes a numbered ticket. Owners use `/tickets` and `/close 12 message`; members see theirs with `/mytickets`. `/panel` → Support lists open tickets with Close buttons.
+
+**Owner tools:** `/stats` (members and messages per group, AI usage), `/groups` and `/announceto 1,3 text` (or pick groups with buttons in `/panel` → Announce), `/backup` and `/restore` (reply to the backup file), and automatic error alerts in your DM.
+
 ## Owner panel (/panel)
 
 Send `/panel` to the bot in a private chat. Everything is controlled with buttons:
