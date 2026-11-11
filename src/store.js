@@ -8,6 +8,15 @@ const defaults = () => ({
   rules: '',
   captcha: { enabled: false, timeout: 120 },
   antilink: false,
+  antibot: false,
+  antispam: { enabled: false, limit: 5, seconds: 8, action: 'mute' },
+  antimention: { enabled: false, limit: 5 },
+  cleanService: false,
+  goodbye: { enabled: false, text: 'Goodbye {name} 👋' },
+  locks: {},
+  words: [],
+  filters: {},
+  approved: [],
   ai: { enabled: true },
   warnLimit: 3,
   warnAction: 'mute',
@@ -90,4 +99,4 @@ class Store {
   }
 }
 
-module.exports = { Store };
+module.exports = { Store, defaults };

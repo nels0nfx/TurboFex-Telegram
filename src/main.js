@@ -39,12 +39,15 @@ bot.use(async (ctx, next) => {
 
 const welcome = require('./welcome');
 require('./antilink').register(bot, store);
+require('./protect').register(bot, store);
 welcome.register(bot, store);
 require('./general').register(bot, store);
 require('./admin').register(bot, store);
 require('./panel').register(bot, store);
 const updater = require('./updater');
 updater.register(bot, store);
+require('./tools').register(bot, store);
+require('./triggers').register(bot, store);
 require('./ai').register(bot, store);
 require('./support').register(bot, store);
 

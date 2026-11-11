@@ -8,7 +8,7 @@ function register(bot, store) {
   bot.on('message', async (ctx, next) => {
     if (!isGroup(ctx) || !hasLink(ctx.msg)) return next();
     if (!store.chat(ctx.chat.id).antilink) return next();
-    if (await isSenderAdmin(ctx)) return next();
+    if (store.chat(ctx.chat.id).approved.includes(ctx.from.id) || (await isSenderAdmin(ctx))) return next();
     try { await ctx.deleteMessage(); } catch (e) { return next(); }
     const note = await say(ctx, `🚫 ${mention(ctx.from)}, links are not allowed here.`);
     if (note) autoDelete(ctx.api, ctx.chat.id, note.message_id);

@@ -1,6 +1,6 @@
 {
   "name": "turbofex-telegram",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "TurboFex Telegram group manager bot",
   "main": "index.js",
   "scripts": {

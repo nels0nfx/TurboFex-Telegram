@@ -5,7 +5,9 @@ const { say, esc, mention, autoDelete } = require('./util');
 
 const GENERAL = [
   ['rules', 'Show the group rules'],
-  ['faq', 'Show frequently asked questions'],
+  ['faq', 'Show frequently asked questions and notes'],
+  ['report', 'Report a message to the admins (reply)'],
+  ['admins', 'List the group admins'],
   ['mywarns', 'Show your warnings'],
   ['id', 'Show your Telegram ID and the chat ID'],
   ['ping', 'Check if the bot is alive'],
@@ -16,25 +18,49 @@ const ADMIN = [
   ['warn', 'Warn a user (reply)'],
   ['unwarn', 'Remove a warning (reply)'],
   ['warns', 'Show warnings (reply)'],
+  ['clearwarns', 'Clear warnings (reply or all)'],
+  ['warnsettings', 'Warn limit and action'],
   ['mute', 'Mute a user: /mute 1h (reply)'],
   ['unmute', 'Unmute a user (reply)'],
   ['kick', 'Remove a user (reply)'],
   ['ban', 'Ban a user (reply)'],
   ['unban', 'Unban a user by ID'],
   ['del', 'Delete the replied message'],
+  ['purge', 'Delete everything from the replied message'],
   ['pin', 'Pin the replied message'],
   ['unpin', 'Unpin a message'],
+  ['info', 'Info about a user (reply)'],
+  ['approve', 'Exempt a user from the filters (reply)'],
+  ['unapprove', 'Remove that exemption (reply)'],
+  ['approved', 'List approved users'],
   ['settings', 'Show group settings'],
-  ['ai', 'AI answers on/off/status'],
   ['setwelcome', 'Set the welcome message'],
-  ['setrules', 'Set the group rules'],
+  ['getwelcome', 'Show the welcome message'],
+  ['delwelcome', 'Reset and switch off the welcome'],
   ['welcome', 'Welcome message on/off'],
+  ['setgoodbye', 'Set the goodbye message'],
+  ['goodbye', 'Goodbye message on/off'],
+  ['cleanservice', 'Delete join/leave messages on/off'],
   ['captcha', 'Join captcha on/off'],
   ['antilink', 'Delete links on/off'],
+  ['antispam', 'Flood protection on/off/limit/action'],
+  ['antibot', 'Only admins can add bots on/off'],
+  ['antimention', 'Limit mentions per message'],
+  ['lock', 'Lock a message type: /lock stickers'],
+  ['unlock', 'Unlock a message type'],
+  ['locks', 'Show all locks'],
+  ['addword', 'Add forbidden words'],
+  ['delword', 'Remove forbidden words'],
+  ['words', 'List forbidden words'],
+  ['setfilter', 'Auto-reply to a keyword'],
+  ['filters', 'List the filters'],
+  ['delfilter', 'Remove a filter'],
+  ['setrules', 'Set the group rules'],
+  ['addfaq', 'Add a FAQ entry / note'],
+  ['delfaq', 'Remove a FAQ entry / note'],
   ['warnlimit', 'Warnings before punishment'],
   ['warnaction', 'mute, kick or ban at the limit'],
-  ['addfaq', 'Add a FAQ entry'],
-  ['delfaq', 'Remove a FAQ entry'],
+  ['ai', 'AI answers on/off/status/fix'],
 ];
 
 const OWNER = [
@@ -75,7 +101,7 @@ function register(bot, store) {
     return say(ctx, s.rules ? `📜 <b>Rules</b>\n\n${s.rules}` : 'No rules have been set yet.');
   });
 
-  bot.command('faq', async (ctx) => {
+  bot.command(['faq', 'notes', 'get'], async (ctx) => {
     if (!isGroup(ctx)) return say(ctx, 'Use /faq inside a group.');
     const s = store.chat(ctx.chat.id);
     const key = String(ctx.match || '').trim().toLowerCase();

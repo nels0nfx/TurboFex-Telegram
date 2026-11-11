@@ -18,13 +18,23 @@ Only run **one copy** of the bot at a time, otherwise Telegram reports a "409 Co
 
 **Everyone:** `/rules` `/faq [topic]` `/id` `/ping` `/help`
 
+**Everyone also gets:** `/report` (reply: pings the admins), `/admins`, `/faq`, `/notes`, `/get <topic>` and `#topic` (reads a FAQ/note).
+
 **Admins** (the bot stays silent for everyone else):
-- `/warn` `/unwarn` `/warns` : reply to a user. At the limit they are muted 24h, kicked or banned (`/warnaction`).
-- `/mute [1h]` `/unmute` `/kick` `/ban [1d]` `/unban <id>`
-- `/del` `/pin [loud]` `/unpin` : reply to a message
-- `/setwelcome <text>` : placeholders `{mention}` `{name}` `{chat}` `{id}`
-- `/setrules <text>` `/addfaq <topic> <answer>` `/delfaq <topic>`
-- `/welcome on|off` `/captcha on|off [seconds]` `/antilink on|off` `/ai on|off` `/warnlimit <n>` `/settings`
+- Warnings: `/warn` `/unwarn` `/warns` `/clearwarns [all]` `/warnsettings [limit N | action mute|kick|ban]`
+- Punishments: `/mute [1h]` `/unmute` `/kick` `/ban [1d]` `/unban <id>`
+- Messages: `/del` `/purge` (reply: deletes everything from that message on) `/pin [loud]` `/unpin` `/info`
+- Protection (all off by default; admins and approved users are never affected):
+  - `/antilink on|off`
+  - `/antispam on|off|limit 5 8|action mute|warn|kick` (flooding or the same message 4 times in a minute)
+  - `/antibot on|off` (only admins can add bots)
+  - `/antimention on|off|limit 5` (stops tag-spam; Telegram does not let bots check if an @username is a member)
+  - `/lock <type>` `/unlock <type|all>` `/locks`: stickers, gifs, photos, videos, voice, files, forwards, polls, contacts, invites, inline
+  - `/addword` `/delword` `/words`: forbidden words (message deleted, sender warned)
+  - `/approve` `/unapprove` `/approved`: exempt a trusted user from all of the above
+- Welcome: `/setwelcome` `/getwelcome` `/delwelcome` `/welcome on|off` `/setgoodbye` `/goodbye on|off` `/cleanservice on|off` (hides "joined/left" messages) `/captcha on|off [seconds]`
+- Content: `/setrules` `/addfaq` (or `/addnote`) `/delfaq` (or `/delnote`) `/setfilter <keyword> <reply>` `/filters` `/delfilter`
+- Other: `/warnlimit` `/warnaction` `/ai on|off|status|fix|test` `/settings`
 
 **Owner:** `/status` `/announce <message>` `/knowledge` `/panel` `/reply <id> <text>` `/block <id>` `/unblock <id>`
 
@@ -44,7 +54,7 @@ Durations: `30s`, `10m`, `2h`, `1d`, `1w`. Without a duration `/mute` and `/ban`
 ## Owner panel (/panel)
 
 Send `/panel` to the bot in a private chat. Everything is controlled with buttons:
-- **Groups:** welcome, captcha (and its timer), anti-link, AI, warn limit and action, welcome text, rules, FAQ (add and delete), clear warnings.
+- **Groups**, each with sub-menus: **Welcome & captcha** (welcome, goodbye, captcha and timer, clean join/leave messages, texts), **Protection** (anti-link, anti-spam, anti-bot, anti-mention, AI, warn limit and action), **Locks**, **Content** (rules, FAQ and notes, filters, bad words) and clear warnings.
 - **AI & knowledge:** status, import the TurboFex README, import any link, add notes, view what the AI knows, test a question, clear your notes.
 - **Updates:** check and install, auto-update on/off, roll back.
 - **Support:** block and unblock users. **Status** and **Announce** to all groups.

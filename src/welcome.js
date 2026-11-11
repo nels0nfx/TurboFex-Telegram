@@ -1,7 +1,7 @@
 'use strict';
 const { InlineKeyboard } = require('grammy');
 const actions = require('./actions');
-const { isGroup } = require('./perms');
+const { isGroup, isAdminId } = require('./perms');
 const { say, sayTo, mention, esc, displayName, fill, autoDelete } = require('./util');
 
 const timers = new Map();
@@ -64,19 +64,34 @@ function register(bot, store) {
         await say(ctx, '👋 Thanks for adding me!\nMake me an <b>admin</b> (delete messages, ban users, pin messages) and send /settings to check everything is ready.');
         continue;
       }
-      if (u.is_bot) continue;
+      if (u.is_bot) {
+        if (s.antibot && ctx.from && ctx.from.id !== u.id && !(await isAdminId(ctx.api, ctx.chat.id, ctx.from.id))) {
+          try {
+            await actions.kick(ctx.api, ctx.chat.id, u.id);
+            const n = await say(ctx, `🤖 Only admins can add bots, so ${esc(displayName(u))} was removed.`);
+            if (n) autoDelete(ctx.api, ctx.chat.id, n.message_id, 10000);
+          } catch (e) { console.error('anti-bot:', e.description || e.message); }
+        }
+        continue;
+      }
       if (s.captcha.enabled && (await startCaptcha(ctx, s, u))) continue;
       if (s.welcome.enabled) await say(ctx, welcomeText(s, ctx.chat.title, u));
     }
+    if (s.cleanService) ctx.deleteMessage().catch(() => {});
   });
 
   bot.on('message:left_chat_member', async (ctx) => {
     const u = ctx.message.left_chat_member;
+    const s = store.chat(ctx.chat.id);
     const entry = store.getPending(ctx.chat.id, u.id);
-    if (!entry) return;
-    clearTimer(entry.chatId, entry.userId);
-    store.removePending(entry.chatId, entry.userId);
-    ctx.api.deleteMessage(entry.chatId, entry.messageId).catch(() => {});
+    if (entry) {
+      clearTimer(entry.chatId, entry.userId);
+      store.removePending(entry.chatId, entry.userId);
+      ctx.api.deleteMessage(entry.chatId, entry.messageId).catch(() => {});
+    } else if (s.goodbye.enabled && !u.is_bot && !(ctx.from && ctx.from.id === ctx.me.id)) {
+      await say(ctx, fill(s.goodbye.text, { mention: mention(u), name: esc(displayName(u)), id: String(u.id), chat: esc(ctx.chat.title || 'the group') }));
+    }
+    if (s.cleanService) ctx.deleteMessage().catch(() => {});
   });
 
   bot.callbackQuery(/^cap:(\d+)$/, async (ctx) => {

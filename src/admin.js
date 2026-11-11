@@ -1,6 +1,7 @@
 'use strict';
 const { adminOnly, isAdminId, botRights } = require('./perms');
 const actions = require('./actions');
+const warnMod = require('./warn');
 const cfg = require('./config');
 const { say, mention, mentionOf, esc, getTarget, parseDuration, fmtDuration, onOff } = require('./util');
 
@@ -30,24 +31,9 @@ function register(bot, store) {
 
   bot.command('warn', adminOnly, async (ctx) => {
     const p = await pick(ctx); if (!p) return;
-    const s = chatOf(ctx);
-    const key = String(p.target.id);
-    const reason = p.rest.join(' ');
-    s.warns[key] = (s.warns[key] || 0) + 1;
-    const count = s.warns[key];
-    if (count < s.warnLimit) {
-      store.save();
-      return say(ctx, `⚠️ ${mentionOf(p.target)} has been warned (${count}/${s.warnLimit}).${reasonLine(reason)}`);
-    }
-    delete s.warns[key];
-    store.save();
     try {
-      if (s.warnAction === 'ban') await actions.ban(ctx.api, ctx.chat.id, p.target.id);
-      else if (s.warnAction === 'kick') await actions.kick(ctx.api, ctx.chat.id, p.target.id);
-      else await actions.mute(ctx.api, ctx.chat.id, p.target.id, 86400);
+      return say(ctx, await warnMod.warn(ctx.api, store, ctx.chat.id, p.target, p.rest.join(' ')));
     } catch (e) { return fail(ctx, e); }
-    const what = { ban: 'banned', kick: 'removed', mute: 'muted for 24h' }[s.warnAction] || 'muted for 24h';
-    return say(ctx, `🚫 ${mentionOf(p.target)} reached ${s.warnLimit} warnings and was ${what}.${reasonLine(reason)}`);
   });
 
   bot.command('unwarn', adminOnly, async (ctx) => {
@@ -182,7 +168,7 @@ function register(bot, store) {
     return say(ctx, `✅ At the warning limit users will be: <b>${a}</b>.`);
   });
 
-  bot.command('addfaq', adminOnly, async (ctx) => {
+  bot.command(['addfaq', 'addnote'], adminOnly, async (ctx) => {
     const m = /^(\S+)\s+([\s\S]+)$/.exec(String(ctx.match || '').trim());
     if (!m) return say(ctx, 'Usage: <code>/addfaq topic answer text</code>');
     const key = m[1].toLowerCase().replace(/^\//, '').slice(0, 32);
@@ -194,7 +180,7 @@ function register(bot, store) {
     return say(ctx, `✅ FAQ saved. Members can use <code>/faq ${esc(key)}</code>`);
   });
 
-  bot.command('delfaq', adminOnly, async (ctx) => {
+  bot.command(['delfaq', 'delnote'], adminOnly, async (ctx) => {
     const key = String(ctx.match || '').trim().toLowerCase();
     const s = chatOf(ctx);
     if (!s.faq[key]) return say(ctx, 'No FAQ entry with that name. Send /faq to see the list.');
@@ -213,6 +199,11 @@ function register(bot, store) {
       `Welcome: ${yn(s.welcome.enabled)}`,
       `Captcha: ${yn(s.captcha.enabled)} (${s.captcha.timeout}s)`,
       `Anti-link: ${yn(s.antilink)}`,
+      `Anti-spam: ${yn(s.antispam.enabled)} (${s.antispam.limit} msgs / ${s.antispam.seconds}s → ${s.antispam.action})`,
+      `Anti-bot: ${yn(s.antibot)} · Anti-mention: ${yn(s.antimention.enabled)} (max ${s.antimention.limit})`,
+      `Goodbye: ${yn(s.goodbye.enabled)} · Clean join/leave messages: ${yn(s.cleanService)}`,
+      `Locks: ${Object.keys(s.locks).filter((k) => s.locks[k]).join(', ') || 'none'}`,
+      `Filters: ${Object.keys(s.filters).length} · Bad words: ${s.words.length} · Approved users: ${s.approved.length}`,
       `AI answers: ${yn(s.ai.enabled)}${cfg.AI_API_KEY ? '' : ' (no AI key set yet)'}`,
       `Warn limit: ${s.warnLimit} → ${s.warnAction}`,
       `Rules: ${s.rules ? 'set' : 'not set'}`,

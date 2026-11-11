@@ -5,11 +5,13 @@ const { isOwner, botRights } = require('./perms');
 const { say, esc } = require('./util');
 const ai = require('./ai');
 const updater = require('./updater');
+const { LOCK_TYPES } = require('./protect');
 
 const WHATSAPP_REPO = 'https://github.com/nels0nfx/TurboFex';
 const NEXT_ACTION = { mute: 'kick', kick: 'ban', ban: 'mute' };
 const NEXT_TIMEOUT = { 30: 60, 60: 120, 120: 300, 300: 30 };
-const GROUP_ACTS = ['g', 't', 'l', 'a', 'ct', 'wt', 'ru', 'fq', 'fa', 'fd', 'cw', 'cy'];
+const GROUP_ACTS = ['g', 't', 'l', 'a', 'ct', 'sl', 'sa', 'ml', 'k', 'sw', 'sp', 'lk', 'cn', 'wt', 'gt', 'ru', 'fq', 'fa', 'fd', 'fl', 'fn', 'fx', 'wl', 'wn', 'wx', 'cw', 'cy'];
+const NEXT_SPAM = { mute: 'warn', warn: 'kick', kick: 'mute' };
 const onOff = (v) => (v ? 'ON' : 'OFF');
 const version = () => { try { return updater.currentVersion(); } catch (e) { return '?'; } };
 const note = (n, text) => (n ? n + '\n\n' : '') + text;
@@ -34,20 +36,66 @@ function register(bot, store) {
     return { text: ids.length ? '👥 <b>Groups</b>\nPick a group:' : '👥 I am not in any group yet. Add me to one first.', kb };
   }
 
+  const title = (s, id) => esc(s.title || id);
+  const lockCount = (s) => Object.keys(s.locks).filter((k) => s.locks[k]).length;
+
   async function groupMenu(ctx, id, n) {
     const s = store.chat(id);
     const r = await botRights(ctx, id);
     const rights = r.missing.length ? `⚠️ Bot still needs: ${r.missing.join(', ')}` : '✅ Bot has all needed rights';
-    const text = note(n, `🛠 <b>${esc(s.title || id)}</b>\nRules: ${s.rules ? 'set' : 'not set'} · FAQ: ${Object.keys(s.faq).length} · Users with warnings: ${Object.keys(s.warns).length}\n${rights}`);
+    const text = note(n, `🛠 <b>${title(s, id)}</b>\nWelcome ${onOff(s.welcome.enabled)} · Captcha ${onOff(s.captcha.enabled)} · Anti-link ${onOff(s.antilink)} · Anti-spam ${onOff(s.antispam.enabled)} · AI ${onOff(s.ai.enabled)}\nLocks: ${lockCount(s)} · Filters: ${Object.keys(s.filters).length} · Bad words: ${s.words.length} · Users with warnings: ${Object.keys(s.warns).length}\n${rights}`);
     const kb = new InlineKeyboard()
-      .text(`👋 Welcome: ${onOff(s.welcome.enabled)}`, `pn:t:${id}:w`).text(`🤖 Captcha: ${onOff(s.captcha.enabled)}`, `pn:t:${id}:c`).row()
-      .text(`🔗 Anti-link: ${onOff(s.antilink)}`, `pn:t:${id}:l`).text(`🧠 AI: ${onOff(s.ai.enabled)}`, `pn:t:${id}:i`).row()
-      .text('➖', `pn:l:${id}:-`).text(`⚠️ Limit: ${s.warnLimit}`, 'pn:n').text('➕', `pn:l:${id}:+`).row()
-      .text(`At limit: ${s.warnAction}`, `pn:a:${id}`).text(`⏱ Captcha: ${s.captcha.timeout}s`, `pn:ct:${id}`).row()
-      .text('✏️ Welcome text', `pn:wt:${id}`).text('📜 Rules', `pn:ru:${id}`).row()
-      .text(`❓ FAQ (${Object.keys(s.faq).length})`, `pn:fq:${id}`).text('🧹 Warnings', `pn:cw:${id}`).row()
+      .text('👋 Welcome & captcha', `pn:sw:${id}`).text('🛡 Protection', `pn:sp:${id}`).row()
+      .text('🔒 Locks', `pn:lk:${id}`).text('📝 Content', `pn:cn:${id}`).row()
+      .text('🧹 Clear warnings', `pn:cw:${id}`).row()
       .text('⬅️ Back', 'pn:gl');
     return { text, kb };
+  }
+
+  function welcomeMenu(id, n) {
+    const s = store.chat(id);
+    const kb = new InlineKeyboard()
+      .text(`👋 Welcome: ${onOff(s.welcome.enabled)}`, `pn:t:${id}:w`).text(`🚪 Goodbye: ${onOff(s.goodbye.enabled)}`, `pn:t:${id}:g`).row()
+      .text(`🤖 Captcha: ${onOff(s.captcha.enabled)}`, `pn:t:${id}:c`).text(`⏱ Captcha: ${s.captcha.timeout}s`, `pn:ct:${id}`).row()
+      .text(`🧽 Clean join/leave: ${onOff(s.cleanService)}`, `pn:t:${id}:v`).row()
+      .text('✏️ Welcome text', `pn:wt:${id}`).text('✏️ Goodbye text', `pn:gt:${id}`).row()
+      .text('⬅️ Back', `pn:g:${id}`);
+    return { text: note(n, `👋 <b>Welcome & captcha</b> · ${title(s, id)}`), kb };
+  }
+
+  function protectMenu(id, n) {
+    const s = store.chat(id);
+    const kb = new InlineKeyboard()
+      .text(`🔗 Anti-link: ${onOff(s.antilink)}`, `pn:t:${id}:l`).text(`🌊 Anti-spam: ${onOff(s.antispam.enabled)}`, `pn:t:${id}:s`).row()
+      .text('➖', `pn:sl:${id}:-`).text(`${s.antispam.limit} msgs / ${s.antispam.seconds}s`, 'pn:n').text('➕', `pn:sl:${id}:+`).row()
+      .text(`Flooders: ${s.antispam.action}`, `pn:sa:${id}`).text(`🤖 Anti-bot: ${onOff(s.antibot)}`, `pn:t:${id}:b`).row()
+      .text(`📣 Anti-mention: ${onOff(s.antimention.enabled)}`, `pn:t:${id}:m`).row()
+      .text('➖', `pn:ml:${id}:-`).text(`Max mentions: ${s.antimention.limit}`, 'pn:n').text('➕', `pn:ml:${id}:+`).row()
+      .text(`🧠 AI answers: ${onOff(s.ai.enabled)}`, `pn:t:${id}:i`).row()
+      .text('➖', `pn:l:${id}:-`).text(`⚠️ Warn limit: ${s.warnLimit}`, 'pn:n').text('➕', `pn:l:${id}:+`).row()
+      .text(`At the limit: ${s.warnAction}`, `pn:a:${id}`).row()
+      .text('⬅️ Back', `pn:g:${id}`);
+    return { text: note(n, `🛡 <b>Protection</b> · ${title(s, id)}\nAdmins and approved users are never affected.`), kb };
+  }
+
+  function locksMenu(id, n) {
+    const s = store.chat(id);
+    const kb = new InlineKeyboard();
+    Object.entries(LOCK_TYPES).forEach(([k, label], i) => {
+      kb.text(`${s.locks[k] ? '🔒' : '🔓'} ${label}`, `pn:k:${id}:${k}`);
+      if (i % 2 === 1) kb.row();
+    });
+    kb.row().text('⬅️ Back', `pn:g:${id}`);
+    return { text: note(n, `🔒 <b>Locks</b> · ${title(s, id)}\nLocked message types are deleted when a normal member sends them.`), kb };
+  }
+
+  function contentMenu(id, n) {
+    const s = store.chat(id);
+    const kb = new InlineKeyboard()
+      .text(`📜 Rules (${s.rules ? 'set' : 'not set'})`, `pn:ru:${id}`).text(`❓ FAQ & notes (${Object.keys(s.faq).length})`, `pn:fq:${id}`).row()
+      .text(`🔎 Filters (${Object.keys(s.filters).length})`, `pn:fl:${id}`).text(`🚫 Bad words (${s.words.length})`, `pn:wl:${id}`).row()
+      .text('⬅️ Back', `pn:g:${id}`);
+    return { text: note(n, `📝 <b>Content</b> · ${title(s, id)}`), kb };
   }
 
   function faqMenu(id, n) {
@@ -55,8 +103,25 @@ function register(bot, store) {
     const keys = Object.keys(s.faq);
     const kb = new InlineKeyboard();
     keys.slice(0, 20).forEach((k, i) => kb.text('🗑 ' + k.slice(0, 24), `pn:fd:${id}:${i}`).row());
-    kb.text('➕ Add FAQ', `pn:fa:${id}`).row().text('⬅️ Back', `pn:g:${id}`);
-    return { text: note(n, `❓ <b>FAQ</b> · ${esc(s.title || id)}\n${keys.length ? 'Tap an entry to delete it.' : 'No entries yet.'}`), kb };
+    kb.text('➕ Add FAQ / note', `pn:fa:${id}`).row().text('⬅️ Back', `pn:cn:${id}`);
+    return { text: note(n, `❓ <b>FAQ & notes</b> · ${title(s, id)}\n${keys.length ? 'Members use /faq topic or #topic. Tap an entry to delete it.' : 'No entries yet.'}`), kb };
+  }
+
+  function filterMenu(id, n) {
+    const s = store.chat(id);
+    const keys = Object.keys(s.filters);
+    const kb = new InlineKeyboard();
+    keys.slice(0, 20).forEach((k, i) => kb.text('🗑 ' + k.slice(0, 24), `pn:fx:${id}:${i}`).row());
+    kb.text('➕ Add filter', `pn:fn:${id}`).row().text('⬅️ Back', `pn:cn:${id}`);
+    return { text: note(n, `🔎 <b>Filters</b> · ${title(s, id)}\n${keys.length ? 'The bot replies when a message contains the keyword. Tap one to delete it.' : 'No filters yet.'}`), kb };
+  }
+
+  function wordsMenu(id, n) {
+    const s = store.chat(id);
+    const kb = new InlineKeyboard();
+    s.words.slice(0, 30).forEach((w, i) => kb.text('🗑 ' + w.slice(0, 24), `pn:wx:${id}:${i}`).row());
+    kb.text('➕ Add words', `pn:wn:${id}`).row().text('⬅️ Back', `pn:cn:${id}`);
+    return { text: note(n, `🚫 <b>Bad words</b> · ${title(s, id)}\n${s.words.length ? 'Messages with these words are deleted and the sender is warned. Tap one to remove it.' : 'No bad words yet.'}`), kb };
   }
 
   function aiMenu(n) {
@@ -157,27 +222,58 @@ function register(bot, store) {
       case 'x': awaiting.delete(ctx.from.id); return done(mainMenu());
       case 'gl': return done(groupsMenu());
       case 'g': return done(groupMenu(ctx, id));
-      case 't':
+      case 'sw': return done(welcomeMenu(id));
+      case 'sp': return done(protectMenu(id));
+      case 'lk': return done(locksMenu(id));
+      case 'cn': return done(contentMenu(id));
+      case 't': {
         if (b === 'w') s.welcome.enabled = !s.welcome.enabled;
+        if (b === 'g') s.goodbye.enabled = !s.goodbye.enabled;
         if (b === 'c') s.captcha.enabled = !s.captcha.enabled;
+        if (b === 'v') s.cleanService = !s.cleanService;
         if (b === 'l') s.antilink = !s.antilink;
+        if (b === 's') s.antispam.enabled = !s.antispam.enabled;
+        if (b === 'b') s.antibot = !s.antibot;
+        if (b === 'm') s.antimention.enabled = !s.antimention.enabled;
         if (b === 'i') s.ai.enabled = !s.ai.enabled;
         store.save();
-        return done(groupMenu(ctx, id));
+        return done('wgcv'.includes(b) ? welcomeMenu(id) : protectMenu(id));
+      }
       case 'l':
         s.warnLimit = Math.min(20, Math.max(1, s.warnLimit + (b === '+' ? 1 : -1)));
         store.save();
-        return done(groupMenu(ctx, id));
-      case 'a': s.warnAction = NEXT_ACTION[s.warnAction] || 'mute'; store.save(); return done(groupMenu(ctx, id));
-      case 'ct': s.captcha.timeout = NEXT_TIMEOUT[s.captcha.timeout] || 30; store.save(); return done(groupMenu(ctx, id));
-      case 'wt': return prompt('welcome', { chatId: id }, `✏️ Send the new welcome message for <b>${esc(s.title || id)}</b>.\nPlaceholders: {mention} {name} {chat} {id}. Basic HTML like &lt;b&gt;bold&lt;/b&gt; works.\n\n<b>Current:</b>\n${esc(s.welcome.text)}`);
-      case 'ru': return prompt('rules', { chatId: id }, `📜 Send the new rules for <b>${esc(s.title || id)}</b>. New lines are kept.${s.rules ? '\n\n<b>Current:</b>\n' + esc(s.rules) : ''}`);
+        return done(protectMenu(id));
+      case 'a': s.warnAction = NEXT_ACTION[s.warnAction] || 'mute'; store.save(); return done(protectMenu(id));
+      case 'sl': s.antispam.limit = Math.min(30, Math.max(2, s.antispam.limit + (b === '+' ? 1 : -1))); store.save(); return done(protectMenu(id));
+      case 'sa': s.antispam.action = NEXT_SPAM[s.antispam.action] || 'mute'; store.save(); return done(protectMenu(id));
+      case 'ml': s.antimention.limit = Math.min(30, Math.max(1, s.antimention.limit + (b === '+' ? 1 : -1))); store.save(); return done(protectMenu(id));
+      case 'ct': s.captcha.timeout = NEXT_TIMEOUT[s.captcha.timeout] || 30; store.save(); return done(welcomeMenu(id));
+      case 'k':
+        if (LOCK_TYPES[b]) { if (s.locks[b]) delete s.locks[b]; else s.locks[b] = true; store.save(); }
+        return done(locksMenu(id));
+      case 'wt': return prompt('welcome', { chatId: id }, `✏️ Send the new welcome message for <b>${title(s, id)}</b>.\nPlaceholders: {mention} {name} {chat} {id}. Basic HTML like &lt;b&gt;bold&lt;/b&gt; works.\n\n<b>Current:</b>\n${esc(s.welcome.text)}`);
+      case 'gt': return prompt('goodbye', { chatId: id }, `✏️ Send the new goodbye message for <b>${title(s, id)}</b>.\nPlaceholders: {mention} {name} {chat} {id}.\n\n<b>Current:</b>\n${esc(s.goodbye.text)}`);
+      case 'ru': return prompt('rules', { chatId: id }, `📜 Send the new rules for <b>${title(s, id)}</b>. New lines are kept.${s.rules ? '\n\n<b>Current:</b>\n' + esc(s.rules) : ''}`);
       case 'fq': return done(faqMenu(id));
-      case 'fa': return prompt('faq', { chatId: id }, '➕ Send the FAQ as one message: the topic word first, then the answer.\nExample:\n<code>pair Open the pairing website, copy your session ID and paste it in config.env</code>');
+      case 'fa': return prompt('faq', { chatId: id }, '➕ Send the FAQ or note as one message: the topic word first, then the answer.\nExample:\n<code>pair Open the pairing website, copy your session ID and paste it in config.env</code>');
       case 'fd': {
         const k = Object.keys(s.faq)[Number(b)];
         if (k) { delete s.faq[k]; store.save(); toast = 'Deleted'; }
         return done(faqMenu(id, k ? '🗑 Deleted ' + esc(k) : ''));
+      }
+      case 'fl': return done(filterMenu(id));
+      case 'fn': return prompt('filter', { chatId: id }, '➕ Send the filter as one message: the keyword first, then the reply. Use quotes for a keyword with spaces.\nExample:\n<code>price The price is free.</code>\n<code>"good morning" Morning {mention}!</code>');
+      case 'fx': {
+        const k = Object.keys(s.filters)[Number(b)];
+        if (k) { delete s.filters[k]; store.save(); toast = 'Deleted'; }
+        return done(filterMenu(id, k ? '🗑 Deleted ' + esc(k) : ''));
+      }
+      case 'wl': return done(wordsMenu(id));
+      case 'wn': return prompt('word', { chatId: id }, '➕ Send the bad words, separated by spaces or commas.');
+      case 'wx': {
+        const w = s.words[Number(b)];
+        if (w) { s.words.splice(Number(b), 1); store.save(); toast = 'Removed'; }
+        return done(wordsMenu(id));
       }
       case 'cw': return done(confirm(`🧹 Remove all warnings in <b>${esc(s.title || id)}</b>? (${Object.keys(s.warns).length} users)`, `pn:cy:${id}`, `pn:g:${id}`));
       case 'cy': s.warns = {}; store.save(); return done(groupMenu(ctx, id, '✅ All warnings removed.'));
@@ -252,7 +348,10 @@ function register(bot, store) {
     awaiting.delete(ctx.from.id);
 
     const back = (n) => {
-      if (w.chatId !== undefined) return w.type === 'faq' ? faqMenu(w.chatId, n) : groupMenu(ctx, w.chatId, n);
+      if (w.chatId !== undefined) {
+        const m = { welcome: welcomeMenu, goodbye: welcomeMenu, rules: contentMenu, faq: faqMenu, filter: filterMenu, word: wordsMenu }[w.type];
+        return m ? m(w.chatId, n) : groupMenu(ctx, w.chatId, n);
+      }
       if (w.type === 'block') return supportMenu(n);
       if (w.type === 'announce') return mainMenu(n);
       return aiMenu(n);
@@ -266,6 +365,34 @@ function register(bot, store) {
           store.save();
           menu = await back('✅ Welcome message saved.');
           break;
+        case 'goodbye':
+          if (text.length > 3500) throw new Error('That is too long (max 3500 characters).');
+          store.chat(w.chatId).goodbye.text = text;
+          store.save();
+          menu = await back('✅ Goodbye message saved. Switch it on with the Goodbye button.');
+          break;
+        case 'filter': {
+          const m = /^(?:"([^"]{1,60})"|(\S{1,60}))\s+([\s\S]+)$/.exec(text);
+          if (!m) { awaiting.set(ctx.from.id, { ...w, t: Date.now() }); return say(ctx, 'Please send the keyword first, then the reply, in one message. Or tap Cancel.'); }
+          const filters = store.chat(w.chatId).filters;
+          const kw = (m[1] || m[2]).toLowerCase();
+          if (!filters[kw] && Object.keys(filters).length >= 100) throw new Error('You already have 100 filters.');
+          if (m[3].length > 3500) throw new Error('That reply is too long (max 3500 characters).');
+          filters[kw] = m[3];
+          store.save();
+          menu = await back(`✅ Filter saved for ${esc(kw)}.`);
+          break;
+        }
+        case 'word': {
+          const list = text.toLowerCase().split(/[\s,]+/).filter((x) => x.length >= 2 && x.length <= 40);
+          const ws = store.chat(w.chatId).words;
+          let added = 0;
+          for (const x of list) if (!ws.includes(x) && ws.length < 200) { ws.push(x); added++; }
+          store.save();
+          ctx.deleteMessage().catch(() => {});
+          menu = await back(`✅ Added ${added} word(s).`);
+          break;
+        }
         case 'rules':
           if (text.length > 3500) throw new Error('That is too long (max 3500 characters).');
           store.chat(w.chatId).rules = text;
