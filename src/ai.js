@@ -312,6 +312,8 @@ async function answerGroup(ctx, store) {
   const replyToBot = !!(r && r.from && r.from.id === ctx.me.id);
   const direct = mentioned || replyToBot;
 
+  const only = s.dest && s.dest.ai;
+  if (only && !direct && (msg.message_thread_id || 0) !== (only.thread || 0)) return; // AI answers are limited to one topic
   if (!direct) {
     if (r || msg.forward_origin) return; // talking to somebody else
     if ((msg.entities || []).some((e) => e.type === 'text_mention' || (e.type === 'mention' && text.substr(e.offset, e.length).toLowerCase() !== handle))) return;

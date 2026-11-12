@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { InlineKeyboard } = require('grammy');
 const actions = require('./actions');
 const guard = require('./guard');
+const dest = require('./dest');
 const { adminOnly, isGroup } = require('./perms');
 const { say, sayTo, esc, mention, mentionOf, displayName, getTarget, onOff, parseDuration, fmtDuration, autoDelete } = require('./util');
 
@@ -38,7 +39,7 @@ async function endGiveaway(api, store, chatId, id) {
     ? `🎉 <b>Giveaway ended!</b>\nPrize: ${esc(g.prize)}\n\n🏆 Winner${winners.length > 1 ? 's' : ''}: ${winners.map((w) => mentionOf(w)).join(', ')}\nCongratulations! An admin will contact you.`
     : `🎉 <b>Giveaway ended</b>\nPrize: ${esc(g.prize)}\n\nNobody joined this time.`;
   api.editMessageText(chatId, g.msgId, `🎉 <b>Giveaway ended</b>\nPrize: ${esc(g.prize)}\nEntries: ${g.entries.length}`, { parse_mode: 'HTML' }).catch(() => {});
-  await sayTo(api, chatId, text, { reply_parameters: { message_id: g.msgId, allow_sending_without_reply: true } });
+  await dest.send(api, store, chatId, 'giveaway', text, { reply_parameters: { message_id: g.msgId, allow_sending_without_reply: true } });
 }
 
 async function setNight(api, store, chatId, lock) {
@@ -76,7 +77,7 @@ async function tick(api, store) {
     const s = store.chat(id);
     for (const it of s.schedules) {
       if (it.next > now) continue;
-      sayTo(api, id, it.text);
+      dest.send(api, store, id, 'schedule', it.text);
       it.next = it.kind === 'daily' ? nextDaily(it.at, s.tz, now) : now + it.every * 1000;
       store.save();
     }
@@ -194,7 +195,7 @@ function register(bot, store) {
     if (Object.keys(s.giveaways).length >= 3) return say(ctx, 'There are already 3 active giveaways. End one with /giveaway end.');
     const id = crypto.randomBytes(4).toString('hex');
     const g = { id, prize: m[3].slice(0, 200), winners: Math.max(1, Number(m[2])), end: Date.now() + dur * 1000, entries: [], msgId: 0 };
-    const msg = await say(ctx, `🎉 <b>GIVEAWAY</b>\nPrize: ${esc(g.prize)}\nWinners: ${g.winners}\nEnds in ${fmtDuration(dur)}\n\nTap the button to join!`, { reply_markup: giveawayKb(id, 0) });
+    const msg = await dest.send(ctx.api, store, ctx.chat.id, 'giveaway', `🎉 <b>GIVEAWAY</b>\nPrize: ${esc(g.prize)}\nWinners: ${g.winners}\nEnds in ${fmtDuration(dur)}\n\nTap the button to join!`, { reply_markup: giveawayKb(id, 0) });
     if (!msg) return;
     g.msgId = msg.message_id;
     s.giveaways[id] = g;

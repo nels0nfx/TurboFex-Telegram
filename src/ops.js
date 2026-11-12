@@ -3,6 +3,7 @@ const cfg = require('./config');
 const ai = require('./ai');
 const { InlineKeyboard } = require('grammy');
 const { ownerOnly, isOwner } = require('./perms');
+const dest = require('./dest');
 const { say, sayTo, esc } = require('./util');
 
 const seen = new Map();
@@ -48,14 +49,15 @@ function register(bot, store) {
   });
 
   bot.command('announceto', ownerOnly, async (ctx) => {
-    const m = /^([\d,\s]+?)\s+([\s\S]+)$/.exec(String(ctx.match || '').trim());
-    if (!m) return say(ctx, 'Usage: <code>/announceto 1,3 your message</code> (numbers from /groups)');
+    const m = /^([\w,\s]+?)\s+([\s\S]+)$/.exec(String(ctx.match || '').trim());
+    if (!m) return say(ctx, 'Usage: <code>/announceto 1,3 your message</code> (numbers from /groups). Add <code>channel</code> to include the announcement channel: <code>/announceto channel,1 text</code>');
     const all = store.chatIds();
-    const picks = [...new Set(m[1].split(/[\s,]+/).filter(Boolean).map(Number))].filter((n) => n >= 1 && n <= all.length);
-    if (!picks.length) return say(ctx, 'Those group numbers do not exist. See /groups.');
-    let ok = 0;
-    for (const n of picks) { try { await ctx.api.sendMessage(all[n - 1], '📢 ' + m[2]); ok++; } catch (e) { /* removed */ } }
-    return say(ctx, `Sent to ${ok} of ${picks.length} group(s).`);
+    const tokens = m[1].split(/[\s,]+/).filter(Boolean);
+    const withChannel = tokens.some((t) => /^(channel|ch)$/i.test(t));
+    const picks = [...new Set(tokens.map(Number))].filter((n) => n >= 1 && n <= all.length);
+    if (!picks.length && !withChannel) return say(ctx, 'Those group numbers do not exist. See /groups.');
+    const r = await dest.announce(ctx.api, store, picks.map((n) => all[n - 1]), '📢 ' + m[2], withChannel);
+    return say(ctx, `Sent to ${r.ok} of ${picks.length} group(s)${withChannel ? (r.channel ? ' and the channel' : ' (no announcement channel is set, see /setchannel)') : ''}.`);
   });
 
   bot.command('backup', ownerOnly, async (ctx) => {

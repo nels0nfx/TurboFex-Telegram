@@ -3,6 +3,7 @@ const { adminOnly, isGroup } = require('./perms');
 const { defaults } = require('./store');
 const actions = require('./actions');
 const guard = require('./guard');
+const dest = require('./dest');
 const { LOCK_TYPES } = require('./protect');
 const { say, esc, mention, mentionOf, displayName, getTarget, onOff, autoDelete } = require('./util');
 
@@ -242,7 +243,9 @@ function register(bot, store) {
       const link = r && String(ctx.chat.id).startsWith('-100') ? `\nhttps://t.me/c/${String(ctx.chat.id).slice(4)}/${r.message_id}` : '';
       const about = r && r.from ? ` about ${mention(r.from)}` : '';
       const extra = String(ctx.match || '').trim();
-      await say(ctx, `🚨 <b>Report</b> by ${mention(ctx.from)}${about}${extra ? '\n' + esc(extra.slice(0, 300)) : ''}${link}\n${admins.map((a) => mention(a.user)).join(' ')}`, r ? { reply_parameters: { message_id: r.message_id, allow_sending_without_reply: true } } : {});
+      const text = `🚨 <b>Report</b> by ${mention(ctx.from)}${about}${extra ? '\n' + esc(extra.slice(0, 300)) : ''}${link}\n${admins.map((a) => mention(a.user)).join(' ')}`;
+      if (dest.get(store, ctx.chat.id, 'reports')) await dest.send(ctx.api, store, ctx.chat.id, 'reports', text);
+      else await say(ctx, text, r ? { reply_parameters: { message_id: r.message_id, allow_sending_without_reply: true } } : {});
       ctx.deleteMessage().catch(() => {});
     } catch (e) { /* cannot list admins */ }
   });

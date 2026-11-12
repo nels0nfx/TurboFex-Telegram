@@ -2,6 +2,7 @@
 const { InlineKeyboard } = require('grammy');
 const actions = require('./actions');
 const guard = require('./guard');
+const dest = require('./dest');
 const { isGroup, isAdminId } = require('./perms');
 const { say, sayTo, mention, esc, displayName, fill, autoDelete } = require('./util');
 
@@ -56,6 +57,8 @@ async function startCaptcha(ctx, s, u) {
 
 function register(bot, store) {
   bot.use((ctx, next) => { ctx.store = store; return next(); });
+  // welcome and goodbye go to the chosen topic if there is one
+  const post = (ctx, text) => (dest.get(store, ctx.chat.id, 'welcome') ? dest.send(ctx.api, store, ctx.chat.id, 'welcome', text) : say(ctx, text));
 
   bot.on('message:new_chat_members', async (ctx) => {
     if (!isGroup(ctx)) return;
@@ -77,7 +80,7 @@ function register(bot, store) {
       }
       if (await guard.onJoin(ctx, store, s, u)) continue;
       if (s.captcha.enabled && (await startCaptcha(ctx, s, u))) continue;
-      if (s.welcome.enabled) await say(ctx, welcomeText(s, ctx.chat.title, u));
+      if (s.welcome.enabled) await post(ctx, welcomeText(s, ctx.chat.title, u));
     }
     if (s.cleanService) ctx.deleteMessage().catch(() => {});
   });
@@ -91,7 +94,7 @@ function register(bot, store) {
       store.removePending(entry.chatId, entry.userId);
       ctx.api.deleteMessage(entry.chatId, entry.messageId).catch(() => {});
     } else if (s.goodbye.enabled && !u.is_bot && !(ctx.from && ctx.from.id === ctx.me.id)) {
-      await say(ctx, fill(s.goodbye.text, { mention: mention(u), name: esc(displayName(u)), id: String(u.id), chat: esc(ctx.chat.title || 'the group') }));
+      await post(ctx, fill(s.goodbye.text, { mention: mention(u), name: esc(displayName(u)), id: String(u.id), chat: esc(ctx.chat.title || 'the group') }));
     }
     if (s.cleanService) ctx.deleteMessage().catch(() => {});
   });
@@ -110,7 +113,11 @@ function register(bot, store) {
     await ctx.answerCallbackQuery({ text: '✅ Verified, welcome!' });
     await ctx.deleteMessage().catch(() => {});
     const s = store.chat(ctx.chat.id);
-    if (s.welcome.enabled) await sayTo(ctx.api, ctx.chat.id, welcomeText(s, ctx.chat.title, ctx.from), { message_thread_id: ctx.msg && ctx.msg.message_thread_id });
+    if (s.welcome.enabled) {
+      const text = welcomeText(s, ctx.chat.title, ctx.from);
+      if (dest.get(store, ctx.chat.id, 'welcome')) await dest.send(ctx.api, store, ctx.chat.id, 'welcome', text);
+      else await sayTo(ctx.api, ctx.chat.id, text, { message_thread_id: ctx.msg && ctx.msg.message_thread_id });
+    }
   });
 }
 

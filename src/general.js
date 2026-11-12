@@ -87,6 +87,9 @@ const ADMIN = [
   ['timezone', 'Group time zone'],
   ['nightmode', 'Quiet hours on/off'],
   ['releases', 'Release news on/off'],
+  ['setdest', 'Choose a topic or channel for a purpose'],
+  ['dest', 'Show where I post things'],
+  ['cleardest', 'Post in the group itself again'],
 ];
 
 const OWNER = [
@@ -103,6 +106,9 @@ const OWNER = [
   ['stats', 'Groups, members and activity'],
   ['groups', 'List the groups'],
   ['announceto', 'Announce to chosen groups'],
+  ['setchannel', 'Announcement or release channel'],
+  ['clearchannel', 'Remove a channel'],
+  ['channels', 'Show the channels'],
   ['backup', 'Send a settings backup'],
   ['restore', 'Restore a backup (reply to it)'],
   ['gban', 'Ban a user in all groups'],
@@ -173,11 +179,8 @@ function register(bot, store) {
   bot.command('announce', ownerOnly, async (ctx) => {
     const text = String(ctx.match || '').trim();
     if (!text) return say(ctx, 'Usage: <code>/announce your message</code>\nSends it to every group I know.');
-    let ok = 0;
-    for (const id of store.chatIds()) {
-      try { await ctx.api.sendMessage(id, '📢 ' + text); ok++; } catch (e) { /* bot removed from that group */ }
-    }
-    return say(ctx, `Sent to ${ok} group(s).`);
+    const r = await require('./dest').announce(ctx.api, store, store.chatIds(), '📢 ' + text, true);
+    return say(ctx, `Sent to ${r.ok} group(s)${r.channel ? ' and the announcement channel' : ''}.`);
   });
   bot.command('mywarns', async (ctx) => {
     const uid = String(ctx.from.id);

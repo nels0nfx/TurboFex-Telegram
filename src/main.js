@@ -56,6 +56,7 @@ guard.register(bot, store);
 community.register(bot, store);      // XP is counted before keyword filters answer
 require('./aitools').register(bot, store);
 require('./tools').register(bot, store);
+require('./dest').register(bot, store);
 require('./triggers').register(bot, store);
 releases.register(bot, store);
 ops.register(bot, store);

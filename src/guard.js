@@ -2,6 +2,7 @@
 const actions = require('./actions');
 const warnMod = require('./warn');
 const ai = require('./ai');
+const dest = require('./dest');
 const { adminOnly, ownerOnly, isAdminId } = require('./perms');
 const { say, sayTo, esc, mention, mentionOf, displayName, getTarget, onOff, autoDelete } = require('./util');
 
@@ -10,8 +11,8 @@ const FOREVER = 1e15;
 
 // ----- moderation log -----
 function log(api, store, chatId, html) {
-  const s = store.chat(chatId);
-  if (s.log && s.log.chat) sayTo(api, s.log.chat, html);
+  const d = dest.get(store, chatId, 'log');
+  if (d) sayTo(api, d.chat, html, d.thread ? { message_thread_id: d.thread } : {});
 }
 function logAction(ctx, store, action, target, extra) {
   log(ctx.api, store, ctx.chat.id, `📋 <b>${esc(action)}</b> · ${esc(ctx.chat.title || '')}\n${target ? 'User: ' + mentionOf(target) + '\n' : ''}${ctx.from ? 'By: ' + mention(ctx.from) : ''}${extra ? '\n' + esc(extra) : ''}`);

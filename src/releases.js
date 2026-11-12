@@ -1,8 +1,9 @@
 'use strict';
 const cfg = require('./config');
 const { adminOnly } = require('./perms');
-const { say, sayTo, esc, onOff } = require('./util');
+const { say, esc, onOff } = require('./util');
 const ai = require('./ai');
+const dest = require('./dest');
 
 let cache = { t: 0, rel: null };
 
@@ -52,7 +53,9 @@ function start(api, store) {
       store.data.settings.releaseSeen = rel.tag;
       store.save();
       if (!seen || seen === rel.tag) return; // first run only remembers the current release
-      for (const id of store.chatIds()) if (store.chat(id).releases) await sayTo(api, id, format(rel, '🚀 New release:'));
+      const text = format(rel, '🚀 New release:');
+      for (const id of store.chatIds()) if (store.chat(id).releases) await dest.send(api, store, id, 'releases', text);
+      await dest.sendGlobal(api, store, 'releases', text);
     } catch (e) { console.error('releases:', e.message); }
   };
   setTimeout(check, 60000).unref();

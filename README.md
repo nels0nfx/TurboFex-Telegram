@@ -51,6 +51,26 @@ Durations: `30s`, `10m`, `2h`, `1d`, `1w`. Without a duration `/mute` and `/ban`
 - `ALLOWED_CHATS` : group IDs the bot may work in. It leaves every other group. Send `/id` in your group to get its ID.
 - `DATA_DIR` : where settings and warnings are saved (default `data`). Keep this folder when you update the bot.
 
+## Destinations: choose where I post (topics and channels)
+
+You decide where each kind of post goes. In a group with topics, open the topic and send `/setdest <purpose>` there. Or give a channel ID, an `@channel` or a topic link (`https://t.me/c/…/12`).
+
+| Purpose | What it posts | Topic of the group | Channel or other group |
+| --- | --- | --- | --- |
+| `releases` | new release news | yes | yes |
+| `announce` | announcements | yes | yes |
+| `log` | moderation log | yes | yes |
+| `schedule` | scheduled messages | yes | yes |
+| `welcome` | welcome and goodbye | yes | no |
+| `giveaway` | giveaways | yes | no |
+| `reports` | `/report` for admins | yes | no |
+| `ai` | AI answers only here (mentions and replies still work everywhere) | yes | no |
+
+- `/setdest releases` (inside the topic) · `/setdest announce -1001234567890` · `/dest` shows everything · `/cleardest releases` or `/cleardest all`.
+- For a channel, make the bot an admin there. If a topic is deleted, posts fall back to the group itself.
+- **Owner, for all groups:** `/setchannel announce <channel>` and `/setchannel releases <channel>`. Then `/announce` and the panel's Announce also post to your announcement channel, and new releases go to the release channel. `/channels` shows them, `/clearchannel` removes one. `/announceto channel,1 text` includes the channel.
+- In `/panel`: **Groups → your group → Destinations**, and **Channels** in the main menu. The Announce screen has a **Channel** toggle.
+
 ## More features (v0.4.5)
 
 All of these are off by default and can be switched on per group in `/panel` → Groups → your group → **More**.

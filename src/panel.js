@@ -7,12 +7,13 @@ const ai = require('./ai');
 const updater = require('./updater');
 const { LOCK_TYPES } = require('./protect');
 const ops = require('./ops');
+const dest = require('./dest');
 const { support } = require('./support');
 
 const WHATSAPP_REPO = 'https://github.com/nels0nfx/TurboFex';
 const NEXT_ACTION = { mute: 'kick', kick: 'ban', ban: 'mute' };
 const NEXT_TIMEOUT = { 30: 60, 60: 120, 120: 300, 300: 30 };
-const GROUP_ACTS = ['mo', 'nb', 'we', 'rt', 'g', 't', 'l', 'a', 'ct', 'sl', 'sa', 'ml', 'k', 'sw', 'sp', 'lk', 'cn', 'wt', 'gt', 'ru', 'fq', 'fa', 'fd', 'fl', 'fn', 'fx', 'wl', 'wn', 'wx', 'cw', 'cy'];
+const GROUP_ACTS = ['ds', 'dp', 'dc', 'mo', 'nb', 'we', 'rt', 'g', 't', 'l', 'a', 'ct', 'sl', 'sa', 'ml', 'k', 'sw', 'sp', 'lk', 'cn', 'wt', 'gt', 'ru', 'fq', 'fa', 'fd', 'fl', 'fn', 'fx', 'wl', 'wn', 'wx', 'cw', 'cy'];
 const NEXT_SPAM = { mute: 'warn', warn: 'kick', kick: 'mute' };
 const NEXT_NEWBIE = { 0: 6, 6: 24, 24: 72, 72: 0 };
 const NEXT_EXPIRY = { 0: 7, 7: 14, 14: 30, 30: 0 };
@@ -33,7 +34,7 @@ function register(bot, store) {
       .text('👥 Groups', 'pn:gl').text('🧠 AI & knowledge', 'pn:ai').row()
       .text('🔄 Updates', 'pn:u').text('📩 Support', 'pn:s').row()
       .text('📊 Status', 'pn:st').text('📈 Stats', 'pn:ss').row()
-      .text('📢 Announce', 'pn:an'),
+      .text('📢 Announce', 'pn:an').text('📍 Channels', 'pn:gd'),
   });
 
   function groupsMenu() {
@@ -55,7 +56,8 @@ function register(bot, store) {
     const kb = new InlineKeyboard()
       .text('👋 Welcome & captcha', `pn:sw:${id}`).text('🛡 Protection', `pn:sp:${id}`).row()
       .text('🔒 Locks', `pn:lk:${id}`).text('📝 Content', `pn:cn:${id}`).row()
-      .text('🧰 More', `pn:mo:${id}`).text('🧹 Clear warnings', `pn:cw:${id}`).row()
+      .text('🧰 More', `pn:mo:${id}`).text('📍 Destinations', `pn:ds:${id}`).row()
+      .text('🧹 Clear warnings', `pn:cw:${id}`).row()
       .text('⬅️ Back', 'pn:gl');
     return { text, kb };
   }
@@ -200,13 +202,30 @@ function register(bot, store) {
     };
   }
 
+  function destMenu(id, n) {
+    const s = store.chat(id);
+    const kb = new InlineKeyboard();
+    for (const [k, p] of Object.entries(dest.PURPOSES)) kb.text(`${p.label}: ${dest.where(dest.get(store, id, k), id)}`, `pn:dp:${id}:${k}`).text('❌', `pn:dc:${id}:${k}`).row();
+    kb.text('⬅️ Back', `pn:g:${id}`);
+    return { text: note(n, `📍 <b>Destinations</b> · ${title(s, id)}\nChoose where each kind of post goes: a topic of this group or (for some) a channel. Tap one to set it, ❌ to post in the group itself again.\nTip: open the topic and send <code>/setdest releases</code> there.`), kb };
+  }
+
+  function globalMenu(n) {
+    const kb = new InlineKeyboard();
+    for (const [k, l] of Object.entries(dest.GLOBAL)) kb.text(`${l}: ${dest.where(dest.getGlobal(store, k), 0)}`, `pn:gp:${k}`).text('❌', `pn:gc:${k}`).row();
+    kb.text('⬅️ Back', 'pn:b');
+    return { text: note(n, '📍 <b>Channels for all groups</b>\nAnnouncements you send from the panel (or /announce) also go to the announcement channel. New releases of the WhatsApp bot go to the release channel. I must be an admin of the channel.'), kb };
+  }
+
   const sel = new Map(); // owner id -> chats chosen for an announcement
+  const selCh = new Map(); // owner id -> include the announcement channel?
   function announceMenu(ownerId) {
     const ids = store.chatIds().slice(0, 30);
     if (!sel.has(ownerId)) sel.set(ownerId, new Set(ids));
     const chosen = sel.get(ownerId);
     const kb = new InlineKeyboard();
     for (const id of ids) kb.text(`${chosen.has(id) ? '✅' : '⬜'} ${store.chat(id).title || id}`, `pn:as:${id}`).row();
+    if (dest.getGlobal(store, 'announce')) kb.text(`📣 Channel: ${selCh.get(ownerId) !== false ? '✅' : '⬜'}`, 'pn:ac').row();
     kb.text('Select all', 'pn:aa:1').text('Select none', 'pn:aa:0').row().text('➡️ Write the message', 'pn:ag').row().text('⬅️ Back', 'pn:b');
     return { text: ids.length ? `📢 <b>Announce</b>\nChoose the groups (${chosen.size} selected):` : '📢 I am not in any group yet.', kb };
   }
@@ -388,11 +407,26 @@ function register(bot, store) {
       case 'an': return done(announceMenu(ctx.from.id));
       case 'as': { const c = sel.get(ctx.from.id) || new Set(); if (store.chatIds().includes(id)) { if (c.has(id)) c.delete(id); else c.add(id); } sel.set(ctx.from.id, c); return done(announceMenu(ctx.from.id)); }
       case 'aa': sel.set(ctx.from.id, a === '1' ? new Set(store.chatIds()) : new Set()); return done(announceMenu(ctx.from.id));
+      case 'ac': selCh.set(ctx.from.id, selCh.get(ctx.from.id) === false); return done(announceMenu(ctx.from.id));
       case 'ag': {
         const chosen = [...(sel.get(ctx.from.id) || [])].filter((x) => store.chatIds().includes(x));
-        if (!chosen.length) { toast = 'Select at least one group'; return done(announceMenu(ctx.from.id)); }
-        return prompt('announce', { sel: chosen }, `📢 Send the announcement. It goes to ${chosen.length} group(s).`);
+        const ch = !!dest.getGlobal(store, 'announce') && selCh.get(ctx.from.id) !== false;
+        if (!chosen.length && !ch) { toast = 'Select at least one group'; return done(announceMenu(ctx.from.id)); }
+        return prompt('announce', { sel: chosen, ch }, `📢 Send the announcement. It goes to ${chosen.length} group(s)${ch ? ' and the announcement channel' : ''}.`);
       }
+      case 'ds': return done(destMenu(id));
+      case 'dp': {
+        const p = dest.PURPOSES[b];
+        if (!p) return ctx.answerCallbackQuery();
+        return prompt('dest', { chatId: id, purpose: b }, `📍 <b>${esc(p.label)}</b> · ${title(s, id)}\nSend a topic link of this group${p.any ? ', a channel ID or an @channel (I must be admin there)' : ''}.\nOr open the topic and send <code>/setdest ${b}</code> there.`);
+      }
+      case 'dc': if (s.dest && s.dest[b]) { delete s.dest[b]; store.save(); toast = 'Cleared'; } return done(destMenu(id));
+      case 'gd': return done(globalMenu());
+      case 'gp': {
+        if (!dest.GLOBAL[a]) return ctx.answerCallbackQuery();
+        return prompt('gdest', { purpose: a }, `📍 <b>${esc(dest.GLOBAL[a])}</b> (all groups)\nSend the channel ID, an @channel or a topic link. I must be an admin there.`);
+      }
+      case 'gc': if (store.data.settings.dest && store.data.settings.dest[a]) { delete store.data.settings.dest[a]; store.save(); toast = 'Cleared'; } return done(globalMenu());
       case 'ss': { await ctx.answerCallbackQuery({ text: 'Collecting stats…' }); return show(ctx, { text: await ops.statsText(ctx.api, store), kb: new InlineKeyboard().text('🔄 Refresh', 'pn:ss').text('⬅️ Back', 'pn:b') }); }
       case 'tk': return done(ticketsMenu());
       case 'tc': { const t = await support.closeTicket(ctx.api, id, ''); toast = t ? 'Closed' : 'Not open'; return done(ticketsMenu(t ? `✅ Closed #${id}.` : '')); }
@@ -413,11 +447,12 @@ function register(bot, store) {
 
     const back = (n) => {
       if (w.chatId !== undefined) {
-        const m = { welcome: welcomeMenu, goodbye: welcomeMenu, rules: contentMenu, faq: faqMenu, filter: filterMenu, word: wordsMenu }[w.type];
+        const m = { welcome: welcomeMenu, goodbye: welcomeMenu, rules: contentMenu, faq: faqMenu, filter: filterMenu, word: wordsMenu, dest: destMenu }[w.type];
         return m ? m(w.chatId, n) : groupMenu(ctx, w.chatId, n);
       }
       if (w.type === 'block') return supportMenu(n);
       if (w.type === 'announce') return mainMenu(n);
+      if (w.type === 'gdest') return globalMenu(n);
       return aiMenu(n);
     };
     let menu;
@@ -504,9 +539,20 @@ function register(bot, store) {
           break;
         }
         case 'announce': {
-          let ok = 0;
-          for (const cid of (w.sel || store.chatIds())) { try { await ctx.api.sendMessage(cid, '📢 ' + text); ok++; } catch (e) { /* removed from that group */ } }
-          menu = back(`✅ Sent to ${ok} group(s).`);
+          const r = await dest.announce(ctx.api, store, w.sel || store.chatIds(), '📢 ' + text, w.ch !== false);
+          menu = back(`✅ Sent to ${r.ok} group(s)${r.channel ? ' and the announcement channel' : ''}.`);
+          break;
+        }
+        case 'dest': {
+          const target = await dest.parseTarget(ctx.api, text, null);
+          await dest.setDest(ctx.api, store, w.chatId, w.purpose, target);
+          menu = back(`✅ ${esc(dest.PURPOSES[w.purpose].label)} will be posted in ${esc(dest.where(target, w.chatId))}.`);
+          break;
+        }
+        case 'gdest': {
+          const target = await dest.parseTarget(ctx.api, text, null);
+          await dest.setGlobal(ctx.api, store, w.purpose, target);
+          menu = back(`✅ ${esc(dest.GLOBAL[w.purpose])} will also be posted in ${esc(dest.where(target, 0))}.`);
           break;
         }
         default: return next();

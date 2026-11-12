@@ -9,6 +9,7 @@ const defaults = () => ({
   captcha: { enabled: false, timeout: 120 },
   antilink: false,
   antibot: false,
+  dest: {},
   levels: { enabled: false },
   xp: {},
   raid: { auto: false, threshold: 8, active: 0 },
