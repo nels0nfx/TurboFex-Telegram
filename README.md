@@ -105,7 +105,7 @@ All of these are off by default and can be switched on per group in `/panel` →
 - `/schedule every 6h text` or `/schedule daily 18:00 text`, `/schedule list`, `/schedule del 2`; `/timezone +1` sets the group time zone.
 - `/nightmode on 23:00 06:00` locks the chat at night and restores the old permissions in the morning.
 
-**Release news:** `/changelog` shows the latest GitHub release of the WhatsApp bot. `/releases on` makes the bot post new releases by itself (`RELEASE_REPO`, `RELEASE_CHECK_HOURS` in config.env).
+**Release news:** `/changelog` shows the latest GitHub release of the WhatsApp bot. `/releases on` makes the bot post new releases by itself. It asks GitHub every 10 minutes (`RELEASE_CHECK_MINUTES`; `RELEASE_REPO` picks the repository; `RELEASE_PRERELEASES=true` includes pre-releases). Only published releases count, not drafts. Owners can use `/releasecheck` to look right now and `/releasecheck post` to announce the latest again (also `/panel` → Updates → Check releases now).
 
 **AI tools:** `/translate [language]` and `/explain` (reply to a message), `/summary [N]` (an admin switches it on with `/summary on`; the last 200 messages are kept in memory only). AI answers can name the section they used (`/aisources on|off`).
 

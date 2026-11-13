@@ -118,6 +118,7 @@ const OWNER = [
   ['close', 'Close a ticket: /close 12'],
   ['aisources', 'AI names its source on/off'],
   ['health', 'Health check: rights, AI, memory'],
+  ['releasecheck', 'Check GitHub for a new release now'],
   ['gaps', 'Questions the AI could not answer'],
   ['gapanswer', 'Teach the AI an answer: /gapanswer id text'],
   ['gapdel', 'Remove one unanswered question'],

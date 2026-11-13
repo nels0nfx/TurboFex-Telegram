@@ -8,6 +8,7 @@ const updater = require('./updater');
 const { LOCK_TYPES } = require('./protect');
 const ops = require('./ops');
 const health = require('./health');
+const releases = require('./releases');
 const dest = require('./dest');
 const { support } = require('./support');
 
@@ -171,7 +172,8 @@ function register(bot, store) {
   function updatesMenu(n) {
     const auto = !!store.data.settings.autoUpdate;
     const bv = updater.backupVersion();
-    const kb = new InlineKeyboard().text('🔎 Check & install', 'pn:uc').text(`Auto-update: ${onOff(auto)}`, 'pn:au').row();
+    const kb = new InlineKeyboard().text('🔎 Check & install', 'pn:uc').text(`Auto-update: ${onOff(auto)}`, 'pn:au').row()
+      .text('📦 Check releases now', 'pn:rc').row();
     if (bv) kb.text(`↩️ Roll back to v${bv}`, 'pn:ur').row();
     kb.text('⬅️ Back', 'pn:b');
     return {
@@ -401,6 +403,13 @@ function register(bot, store) {
         } catch (e) {
           return show(ctx, updatesMenu('❌ ' + esc(updater.explain(e))));
         }
+      }
+      case 'rc': {
+        await ctx.answerCallbackQuery({ text: 'Checking GitHub…' });
+        try {
+          const r = await releases.checkNow(ctx.api, store);
+          return show(ctx, updatesMenu(!r.rel ? 'No release found yet.' : r.announced ? `✅ Announced ${esc(r.rel.name)}.` : `📦 Latest release: ${esc(r.rel.name)}${r.first ? ' (remembered; the next new one will be announced)' : ' (already announced)'}.`));
+        } catch (e) { return show(ctx, updatesMenu('❌ ' + esc(e.message))); }
       }
       case 'au': store.data.settings.autoUpdate = !store.data.settings.autoUpdate; store.save(); return done(updatesMenu());
       case 'ur': {

@@ -37,7 +37,9 @@ module.exports = {
   AUTO_UPDATE_HOURS: Number(process.env.AUTO_UPDATE_HOURS) || 6,
   HEALTH_MEMORY_MB: Number(process.env.HEALTH_MEMORY_MB) || 450,
   RELEASE_REPO: (process.env.RELEASE_REPO || 'nels0nfx/TurboFex').trim(),
-  RELEASE_CHECK_HOURS: Number(process.env.RELEASE_CHECK_HOURS) || 2,
+  // how often GitHub is asked for new releases (minutes, at least 3). RELEASE_CHECK_HOURS still works.
+  RELEASE_CHECK_MINUTES: Math.max(3, Number(process.env.RELEASE_CHECK_MINUTES) || (Number(process.env.RELEASE_CHECK_HOURS) ? Number(process.env.RELEASE_CHECK_HOURS) * 60 : 10)),
+  RELEASE_PRERELEASES: /^(1|true|yes|on)$/i.test(process.env.RELEASE_PRERELEASES || ''),
   // AI answers (any OpenAI-compatible API; defaults to Google Gemini's free tier)
   AI_API_KEY: aiKey,
   AI_BASE_URL: aiBase,
