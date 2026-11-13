@@ -56,7 +56,7 @@ class Store {
     fs.mkdirSync(dir, { recursive: true });
     this.dir = dir;
     this.file = path.join(dir, 'db.json');
-    this.data = { chats: {}, pending: {}, tickets: {}, blocked: [], settings: {}, gbans: {}, reminders: [], support: { next: 1, items: {} }, stats: {} };
+    this.data = { chats: {}, pending: {}, tickets: {}, blocked: [], settings: {}, gbans: {}, reminders: [], support: { next: 1, items: {} }, stats: {}, gaps: [] };
     this.dirty = false;
     setInterval(() => { if (this.dirty) this.flush(); }, 30000).unref();
     this.timer = null;
@@ -69,7 +69,7 @@ class Store {
     try {
       const j = JSON.parse(raw);
       this.data = { chats: j.chats || {}, pending: j.pending || {}, tickets: j.tickets || {}, blocked: j.blocked || [], settings: j.settings || {},
-        gbans: j.gbans || {}, reminders: j.reminders || [], support: j.support || { next: 1, items: {} }, stats: j.stats || {} };
+        gbans: j.gbans || {}, reminders: j.reminders || [], support: j.support || { next: 1, items: {} }, stats: j.stats || {}, gaps: j.gaps || [] };
     } catch (e) {
       const bak = path.join(this.dir, `db.corrupt-${Date.now()}.json`);
       fs.writeFileSync(bak, raw);

@@ -90,7 +90,7 @@ function register(bot, store) {
     const j = pending.get(ctx.from.id);
     pending.delete(ctx.from.id);
     if (ctx.match[1] === 'no' || !j) return ctx.editMessageText('Cancelled.').catch(() => {});
-    store.data = Object.assign({ chats: {}, pending: {}, tickets: {}, blocked: [], settings: {}, gbans: {}, reminders: [], support: { next: 1, items: {} }, stats: {} }, j, { pending: {} });
+    store.data = Object.assign({ chats: {}, pending: {}, tickets: {}, blocked: [], settings: {}, gbans: {}, reminders: [], support: { next: 1, items: {} }, stats: {}, gaps: [] }, j, { pending: {} });
     store.flush();
     return ctx.editMessageText(`✅ Restored ${Object.keys(store.data.chats).length} group(s). Settings are active now.`).catch(() => {});
   });

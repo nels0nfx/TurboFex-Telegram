@@ -51,6 +51,19 @@ Durations: `30s`, `10m`, `2h`, `1d`, `1w`. Without a duration `/mute` and `/ban`
 - `ALLOWED_CHATS` : group IDs the bot may work in. It leaves every other group. Send `/id` in your group to get its ID.
 - `DATA_DIR` : where settings and warnings are saved (default `data`). Keep this folder when you update the bot.
 
+## Unanswered questions: teach the AI what it misses
+
+When a member asks something the knowledge does not cover, the AI says it is not sure and the question is saved. Similar questions are merged and counted.
+- `/gaps` lists them, most asked first. `/gapanswer <id> your answer` teaches the AI (saved as a Q&A in the knowledge), `/gapdel <id>`, `/gapclear`.
+- In `/panel` → **AI & knowledge** → **Unanswered**: tap a question, send the answer, done.
+- The questions are stored in `data/` and are part of `/backup`.
+
+## Health check
+
+- `/health` (or `/panel` → Status): version, uptime, memory, AI status and errors, and for every group whether I still have the admin rights I need.
+- You get a DM when: I was offline unexpectedly (crash or host restart), I lose a right or am removed from a group (and when it is fixed), or memory is high (`HEALTH_MEMORY_MB`, default 450).
+- Normal restarts and updates stay quiet.
+
 ## Destinations: choose where I post (topics and channels)
 
 You decide where each kind of post goes. In a group with topics, open the topic and send `/setdest <purpose>` there. Or give a channel ID, an `@channel` or a topic link (`https://t.me/c/…/12`).

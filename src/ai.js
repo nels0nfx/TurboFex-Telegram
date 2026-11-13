@@ -1,5 +1,6 @@
 'use strict';
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 const { InlineKeyboard } = require('grammy');
 const cfg = require('./config');
@@ -94,7 +95,7 @@ function systemPrompt(mode, question) {
     'You help members with the TurboFex WhatsApp bot: what it does, setup, session ID and pairing, hosting, commands, updates and problems. Use ONLY the KNOWLEDGE below.',
     'Rules:',
     '- Answer in the same language as the member. Be short and clear (under 120 words). For a process, give short numbered steps. Plain text only: no tables, no headings.',
-    '- If the KNOWLEDGE does not contain the answer, say you are not sure and that an admin will help. Never guess or invent commands, links, settings, prices or features.',
+    '- If the KNOWLEDGE does not contain the answer, say you are not sure and that an admin will help, and add the marker [[GAP]] at the very end of that answer (it is removed before the member sees it). Never guess or invent commands, links, settings, prices or features.',
     '- Only mention links that appear in the KNOWLEDGE.',
     sources ? '- When you used the KNOWLEDGE, end the answer with the section it came from in brackets, for example [Getting started]. The section names are in round brackets at the start of each KNOWLEDGE block.' : '',
     rule,
@@ -253,6 +254,35 @@ function toHtml(t) {
   return s.slice(0, 3500);
 }
 
+// ----- questions the knowledge could not answer (the owner can fill the gaps) -----
+let storeRef = null;
+const jaccard = (a, b) => { const A = new Set(a); const B = new Set(b); let i = 0; for (const x of A) if (B.has(x)) i++; return i / (A.size + B.size - i || 1); };
+function recordGap(question, chatId) {
+  if (!storeRef) return;
+  const q = String(question).trim().slice(0, 200);
+  const w = (q.toLowerCase().match(/[\p{L}\p{N}_.\-]{3,}/gu) || []).filter((x) => !STOP.has(x));
+  if (w.length < 2) return;
+  const gaps = storeRef.data.gaps || (storeRef.data.gaps = []);
+  const hit = gaps.find((g) => jaccard(w, g.w) >= 0.6);
+  if (hit) { hit.count++; hit.last = Date.now(); } else {
+    gaps.push({ id: crypto.randomBytes(3).toString('hex'), q, w: w.slice(0, 12), count: 1, first: Date.now(), last: Date.now(), chat: chatId || 0 });
+    if (gaps.length > 200) { gaps.sort((a, b) => b.count - a.count || b.last - a.last); gaps.length = 200; }
+  }
+  storeRef.save();
+}
+const listGaps = () => (storeRef ? [...(storeRef.data.gaps || [])].sort((a, b) => b.count - a.count || b.last - a.last) : []);
+const getGap = (id) => (storeRef ? (storeRef.data.gaps || []).find((g) => g.id === id) : null);
+function removeGap(id) { if (!storeRef) return; storeRef.data.gaps = (storeRef.data.gaps || []).filter((g) => g.id !== id); storeRef.save(); }
+function clearGaps() { if (!storeRef) return; storeRef.data.gaps = []; storeRef.save(); }
+// Saves the owner's answer as knowledge and removes the gap
+function answerGap(id, answer) {
+  const g = getGap(id);
+  if (!g) throw new Error('That question is no longer in the list.');
+  appendExtra(`## Q&A: ${g.q}\n${String(answer).trim()}`);
+  removeGap(id);
+  return g;
+}
+
 let lastAlert = 0;
 let setSources = () => {};
 function hint(e) {
@@ -290,6 +320,9 @@ async function ask(ctx, text, { mode, hkey }) {
     alertOwners(ctx.api, e);
     throw e;
   }
+  let gap = false;
+  out = out.replace(/\s*\[\[GAP\]\]\s*/gi, () => { gap = true; return ' '; }).trim();
+  if (gap) recordGap(text, ctx.chat && ctx.chat.id);
   if (out.toUpperCase().includes('NO_REPLY')) return null;
   const keep = [...(h && Date.now() - h.t < 600000 ? h.msgs : []), { role: 'user', content: text }, { role: 'assistant', content: out }].slice(-6);
   history.set(hkey, { t: Date.now(), msgs: keep });
@@ -447,6 +480,7 @@ const askTest = (ctx, q) => ask(ctx, String(q).slice(0, 800), { mode: 'direct', 
 
 function register(bot, store) {
   store.data.settings = store.data.settings || {};
+  storeRef = store;
   const saved = store.data.settings.aiModel;
   if (saved && saved.configured === cfg.AI_MODEL && saved.model) auto = saved.model;
   sources = store.data.settings.aiSources !== false;
@@ -508,6 +542,24 @@ function register(bot, store) {
     return say(ctx, lines.join('\n'));
   });
 
+  bot.command('gaps', ownerOnly, async (ctx) => {
+    const list = listGaps();
+    if (!list.length) return say(ctx, '✅ No unanswered questions. When the AI is asked something its knowledge does not cover, it shows up here.');
+    return say(ctx, `❓ <b>Questions the AI could not answer (${list.length})</b>\n` + list.slice(0, 15).map((g) => `<code>${g.id}</code> · ${g.count}× · ${esc(g.q)}`).join('\n') + '\n\n<code>/gapanswer &lt;id&gt; your answer</code> teaches it · <code>/gapdel &lt;id&gt;</code> · <code>/gapclear</code>\nOr use /panel → AI & knowledge → Unanswered.');
+  });
+  bot.command('gapanswer', ownerOnly, async (ctx) => {
+    const m = /^(\w+)\s+([\s\S]+)$/.exec(String(ctx.match || '').trim());
+    if (!m) return say(ctx, 'Usage: <code>/gapanswer a1b2c3 The answer the AI should know</code> (the id comes from /gaps)');
+    try { const g = answerGap(m[1], m[2]); return say(ctx, `✅ Learned. From now on it can answer: <i>${esc(g.q)}</i>`); } catch (e) { return say(ctx, '❌ ' + esc(e.message)); }
+  });
+  bot.command('gapdel', ownerOnly, async (ctx) => {
+    const id = String(ctx.match || '').trim();
+    if (!getGap(id)) return say(ctx, 'No question with that id. See /gaps.');
+    removeGap(id);
+    return say(ctx, '🗑 Removed.');
+  });
+  bot.command('gapclear', ownerOnly, async (ctx) => { clearGaps(); return say(ctx, '🗑 The list of unanswered questions is empty now.'); });
+
   bot.command('knowledge', ownerOnly, async (ctx) => {
     const m = /^(\w+)?\s*([\s\S]*)$/.exec(String(ctx.match || '').trim());
     const sub = (m[1] || '').toLowerCase();
@@ -552,4 +604,4 @@ function register(bot, store) {
   });
 }
 
-module.exports = { setAiSources: (v) => setSources(v), aiSources: () => sources, raw, canCall, enabled, register, answerDM, toHtml, knowledge, knowledgeFor, chunks, clean, fetchKnowledge, fetchRepoDocs, importRepo, setSource, appendExtra, clearExtra, askTest, info, fixModel, discover, QUESTION };
+module.exports = { listGaps, getGap, removeGap, clearGaps, answerGap, setAiSources: (v) => setSources(v), aiSources: () => sources, raw, canCall, enabled, register, answerDM, toHtml, knowledge, knowledgeFor, chunks, clean, fetchKnowledge, fetchRepoDocs, importRepo, setSource, appendExtra, clearExtra, askTest, info, fixModel, discover, QUESTION };

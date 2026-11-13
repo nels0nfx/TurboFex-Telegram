@@ -117,6 +117,11 @@ const OWNER = [
   ['tickets', 'Open support tickets'],
   ['close', 'Close a ticket: /close 12'],
   ['aisources', 'AI names its source on/off'],
+  ['health', 'Health check: rights, AI, memory'],
+  ['gaps', 'Questions the AI could not answer'],
+  ['gapanswer', 'Teach the AI an answer: /gapanswer id text'],
+  ['gapdel', 'Remove one unanswered question'],
+  ['gapclear', 'Clear the unanswered list'],
   ['unblock', 'Unblock a user: /unblock <id>'],
 ];
 

@@ -7,6 +7,7 @@ const ai = require('./ai');
 const updater = require('./updater');
 const { LOCK_TYPES } = require('./protect');
 const ops = require('./ops');
+const health = require('./health');
 const dest = require('./dest');
 const { support } = require('./support');
 
@@ -162,6 +163,7 @@ function register(bot, store) {
       .text('➕ Add a note', 'pn:kn').text('👁 View knowledge', 'pn:kv').row()
       .text('🧪 Test a question', 'pn:kt').text('🔧 Find a working model', 'pn:km').row()
       .text('🗑 Clear my notes', 'pn:kc').text(`📚 Sources: ${onOff(ai.aiSources())}`, 'pn:ks').row()
+      .text(`❓ Unanswered (${ai.listGaps().length})`, 'pn:qg').row()
       .text('⬅️ Back', 'pn:b');
     return { text, kb };
   }
@@ -193,13 +195,20 @@ function register(bot, store) {
     return { text: note(n, store.data.blocked.length ? '📋 <b>Blocked users</b>\nTap one to unblock.' : '📋 Nobody is blocked.'), kb };
   }
 
-  function statusMenu() {
-    const up = Math.floor(process.uptime());
-    const i = ai.info();
+  async function statusMenu(ctx) {
     return {
-      text: `📊 <b>Status</b>\nVersion: v${esc(version())}\nUptime: ${Math.floor(up / 3600)}h ${Math.floor((up % 3600) / 60)}m\nMemory: ${Math.round(process.memoryUsage().rss / 1048576)} MB\nGroups known: ${store.chatIds().length}\nPending captchas: ${store.allPending().length}\nAI: ${i.enabled ? 'on' : 'off'}\nNode: ${process.version}`,
+      text: await health.healthText(ctx.api, store, ctx.me.id),
       kb: new InlineKeyboard().text('🔄 Refresh', 'pn:st').text('⬅️ Back', 'pn:b'),
     };
+  }
+
+  function gapsMenu(n) {
+    const list = ai.listGaps();
+    const kb = new InlineKeyboard();
+    list.slice(0, 8).forEach((g) => kb.text(`💬 ${g.count}× ${g.q.slice(0, 30)}`, `pn:qa:${g.id}`).text('🗑', `pn:qx:${g.id}`).row());
+    if (list.length) kb.text('🗑 Clear all', 'pn:qc').row();
+    kb.text('⬅️ Back', 'pn:ai');
+    return { text: note(n, list.length ? `❓ <b>Unanswered questions (${list.length})</b>\nTap one to teach the AI the answer. 🗑 removes it.` : '✅ <b>No unanswered questions.</b>\nWhen the AI is asked something its knowledge does not cover, it appears here.'), kb };
   }
 
   function destMenu(id, n) {
@@ -403,7 +412,16 @@ function register(bot, store) {
       case 'sb': return done(blockedMenu());
       case 'sn': return prompt('block', {}, '🚫 Send the numeric Telegram ID of the user to block from support.');
       case 'su': store.unblock(id); toast = 'Unblocked'; return done(blockedMenu());
-      case 'st': return done(statusMenu());
+      case 'st': return done(statusMenu(ctx));
+      case 'qg': return done(gapsMenu());
+      case 'qa': {
+        const g = ai.getGap(a);
+        if (!g) return done(gapsMenu('That question is gone.'));
+        return prompt('gap', { gapId: a }, `💬 <b>${esc(g.q)}</b>\nAsked ${g.count} time(s). Send the answer the AI should give. It is saved as knowledge.`);
+      }
+      case 'qx': ai.removeGap(a); toast = 'Removed'; return done(gapsMenu());
+      case 'qc': return done(confirm('🗑 Remove all unanswered questions?', 'pn:qy', 'pn:qg'));
+      case 'qy': ai.clearGaps(); return done(gapsMenu('🗑 Cleared.'));
       case 'an': return done(announceMenu(ctx.from.id));
       case 'as': { const c = sel.get(ctx.from.id) || new Set(); if (store.chatIds().includes(id)) { if (c.has(id)) c.delete(id); else c.add(id); } sel.set(ctx.from.id, c); return done(announceMenu(ctx.from.id)); }
       case 'aa': sel.set(ctx.from.id, a === '1' ? new Set(store.chatIds()) : new Set()); return done(announceMenu(ctx.from.id));
@@ -453,6 +471,7 @@ function register(bot, store) {
       if (w.type === 'block') return supportMenu(n);
       if (w.type === 'announce') return mainMenu(n);
       if (w.type === 'gdest') return globalMenu(n);
+      if (w.type === 'gap') return gapsMenu(n);
       return aiMenu(n);
     };
     let menu;
@@ -508,6 +527,11 @@ function register(bot, store) {
           faq[key] = m[2];
           store.save();
           menu = await back(`✅ Saved. Members can use /faq ${esc(key)}`);
+          break;
+        }
+        case 'gap': {
+          const g = ai.answerGap(w.gapId, text);
+          menu = back(`✅ Learned. It can now answer: ${esc(g.q)}`);
           break;
         }
         case 'note':

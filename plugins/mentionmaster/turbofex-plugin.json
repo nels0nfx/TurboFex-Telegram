@@ -1,0 +1,28 @@
+{
+  "manifestVersion": 1,
+  "id": "mentionmaster",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "name": "MentionMaster",
+  "description": "Automatically replies with your custom message when someone mentions the configured owner in a group.",
+  "author": {
+    "name": "TurboFex Community"
+  },
+  "permissions": [
+    "chat.send",
+    "storage",
+    "events.message"
+  ],
+  "commands": [
+    {
+      "name": "mention",
+      "who": "owner",
+      "groupOnly": false,
+      "description": "Configure your automatic mention response",
+      "usage": ".mention set <message> | on | off | view | reset | cooldown <seconds>"
+    }
+  ],
+  "events": [
+    "message"
+  ]
+}

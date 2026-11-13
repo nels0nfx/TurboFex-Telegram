@@ -60,6 +60,8 @@ require('./dest').register(bot, store);
 require('./triggers').register(bot, store);
 releases.register(bot, store);
 ops.register(bot, store);
+const health = require('./health');
+health.register(bot, store);
 require('./ai').register(bot, store);
 require('./support').register(bot, store);
 
@@ -78,6 +80,7 @@ async function setCommands() {
 
 function shutdown(signal) {
   console.log(`${signal} received, saving and stopping...`);
+  store.data.settings.cleanStop = true;
   store.flush();
   bot.stop().catch(() => {});
   setTimeout(() => process.exit(0), 500).unref();
@@ -101,6 +104,8 @@ process.on('unhandledRejection', (e) => {
     allowed_updates: ['message', 'callback_query', 'chat_member'],
     onStart: () => {
       updater.onBoot(bot.api, store);
+      health.onBoot(bot.api, store).catch((e) => console.error('health:', e.message));
+      health.start(bot.api, store, bot.botInfo.id);
       releases.start(bot.api, store);
       // background jobs every 30 seconds: reminders, schedules, giveaways, night mode, raid timers, warning expiry
       setInterval(() => {

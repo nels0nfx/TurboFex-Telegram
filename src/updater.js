@@ -169,6 +169,7 @@ async function install() {
 const notifyOwners = (api, text) => Promise.all(cfg.OWNER_IDS.map((id) => sayTo(api, id, text)));
 
 function restartSoon(store) {
+  store.data.settings.cleanStop = true;
   store.flush();
   setTimeout(() => process.exit(42), 800);
 }
